@@ -1,0 +1,2 @@
+mexec  : void mexec^vavistagtm(I:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_char_t*,IO:gtm_ulong_t*,IO:gtm_double_t*)
+
