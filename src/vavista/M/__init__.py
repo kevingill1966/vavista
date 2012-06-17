@@ -1,8 +1,6 @@
 
 import os
 
-print "importing M"
-
 # If the GTMCI environment variable is not configured, then set it to
 # point to the callin file. Otherwise assume that the user knows what
 # they are doing.
@@ -17,5 +15,8 @@ if gtmroutines.find("vavista/src/_gtm") == -1:
 
 # At some later stage will try cache and gtm
 import vavista._gtm as _mumps
+
+INOUT=_mumps.INOUT
+mexec=_mumps.mexec
     
 

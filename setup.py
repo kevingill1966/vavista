@@ -41,5 +41,6 @@ setup(
     data_files=[('vavista/_gtm', ['src/vavista/_gtm/calltab.ci', 'src/vavista/_gtm/vavistagtm.m']),],
     ext_modules=ext,
     include_package_data=True,
+    test_suite = "vavista.tests",
     zip_safe=False)
 
