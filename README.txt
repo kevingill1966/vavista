@@ -29,7 +29,6 @@ vista.M
         g['^gl']['0'].has_value()
         g['^gl']['0'].has_decendants()
         g['^gl']['0'].keys_with_decendants()
-        g['^gl']['0'].items_with_decendants()
 
         g['^gl']['0'].kill()         # kill value and decendants
 
