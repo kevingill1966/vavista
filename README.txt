@@ -13,7 +13,7 @@ vista.M
 
     Low Level API
 
-        vista.M.exec(Code, parameters)
+        vista.M.mexec(Code, parameters)
         vista.M.proc(ProcedureName, parameters)
         vista.M.func(FunctionName, parameters)
 

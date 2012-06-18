@@ -18,6 +18,81 @@ import vavista._gtm as _mumps
 
 INOUT=_mumps.INOUT
 mexec=_mumps.mexec
+
+class REF(object):
+    def __init__(self, value):
+        self.value = value
+
+def proc(procedure, *inparams):
+    iStr, iInt, iDbl = 0, 0, 0
+    params = []
+    callparams = []
+    for p in inparams:
+        inout, var, ref = "", "", ""
+        if type(p) == REF:
+            p = p.value
+            ref = "@"
+        if type(p) == INOUT:
+            v = p.value
+            inout = "."
+        else:
+            v = p
+        if type(v) == str:
+            # TODO: unicode
+            var = "s%d" % iStr
+            iStr += 1
+        elif type(v) in [int, long]:
+            var = "l%d" % iInt
+            iInt += 1
+        elif type(v) == float:
+            var = "d%d" % iDbl
+            iDbl += 1
+        else:
+            assert(0)
+        params.append(p)
+        callparams.append("%s%s%s" % (ref, inout, var))
+
+    if len(callparams):
+        cmd = "do %s(%s)" % (procedure, ",".join(callparams))
+    else:
+        cmd = "do %s" % procedure
+    return mexec(cmd, *params)
+    
+
+def func(procedure, *inparams):
+    iStr, iInt, iDbl = 1, 0, 0
+    params = [INOUT("")]
+    callparams = []
+    for p in inparams:
+        inout, var, ref = "", "", ""
+        if type(p) == REF:
+            p = p.value
+            ref = "@"
+        if type(p) == INOUT:
+            v = p.value
+            inout = "."
+        else:
+            v = p
+        if type(v) == str:
+            # TODO: unicode
+            var = "s%d" % iStr
+            iStr += 1
+        elif type(v) in [int, long]:
+            var = "l%d" % iInt
+            iInt += 1
+        elif type(v) == float:
+            var = "d%d" % iDbl
+            iDbl += 1
+        else:
+            assert(0)
+        params.append(p)
+        callparams.append("%s%s%s" % (ref, inout, var))
+
+    if len(callparams):
+        cmd = "set s0=%s(%s)" % (procedure, ",".join(callparams))
+    else:
+        cmd = "set s0=%s()" % procedure
+    return mexec(cmd, *params)
     
 class Global(object):
     def __init__(self, path):
