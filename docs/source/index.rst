@@ -45,6 +45,11 @@ Instead, clone the archive and use setuputils::
     $ python setup.py test
     $ sudo python setup.py install
 
+To build this documentation::
+
+    $ sudo pip install sphinx
+    $ python setup.py build_sphinx
+
 
 Contents
 --------
