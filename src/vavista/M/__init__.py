@@ -56,6 +56,7 @@ def proc(procedure, *inparams):
         cmd = "do %s(%s)" % (procedure, ",".join(callparams))
     else:
         cmd = "do %s" % procedure
+    #print "mexec(", cmd, params, ")"
     return mexec(cmd, *params)
     
 
@@ -92,6 +93,7 @@ def func(procedure, *inparams):
         cmd = "set s0=%s(%s)" % (procedure, ",".join(callparams))
     else:
         cmd = "set s0=%s()" % procedure
+    #print "mexec(", cmd, params, ")"
     return mexec(cmd, *params)
     
 class Global(object):
@@ -99,6 +101,19 @@ class Global(object):
         self.path = path
     def __getitem__(self, key):
         return Global(self.path + [str(key)])
+
+    def printable(self):
+        rv = []
+        for k, v in self.items():
+            rv.append('%s.%s = "%s"' % (".".join(self.path), k, v))
+        for k in self.keys_with_decendants():
+            children = self[k].printable()
+            if children:
+                rv = rv + children
+        return rv
+    
+    def __str__(self):
+        return '\n'.join([str(s) for s in self.printable()])
 
     def get_value(self):
         if len(self.path) == 1:
@@ -149,10 +164,11 @@ class Global(object):
             path = '%s("%s",s0)' % (self.path[0], '","'.join(self.path[1:]))
         else:
             path = '%s(s0)' % (self.path[0])
+
         s0 = ""
         rv = []
         while 1:
-            s0, l0, s1 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s),s1=%s ' % (path, path, path), INOUT(s0), INOUT(0), INOUT(""))
+            s0, l0, s1 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s),s1=$GET(%s) ' % (path, path, path), INOUT(s0), INOUT(0), INOUT(""))
             if s0:
                 if l0 & 1:
                     rv.append((s0, s1))
@@ -178,6 +194,13 @@ class Global(object):
             else:
                 break
         return rv
+    def exists(self):
+        if len(self.path) == 1:
+            s0 = self.path[0]
+        else:
+            s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
+        l0, = mexec("set l0=$data(@s0)", s0, INOUT(0))
+        return l0 > 0
     def has_value(self):
         if len(self.path) == 1:
             s0 = self.path[0]
