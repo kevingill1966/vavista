@@ -31,6 +31,8 @@ class TestDBS(unittest.TestCase):
         self.assertEqual(dd.fileid, "999900")
         print '\n'
         print dd
+        print self.dbs.dd("FILE")
+        print self.dbs.dd("LOCATION")
 
     def test_fileget(self):
         file = self.dbs.get_file("OPTION")

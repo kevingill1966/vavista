@@ -198,6 +198,15 @@ class FieldSubfile(Field):
 FIELD_TYPES = [FieldText, FieldDatetime, FieldNumeric, FieldSet, FieldWP, FieldPointer,
     FieldVPointer, FieldMUMPS, FieldComputed, FieldSubfile]
 
+class Index(object):
+    name = table = columns = None
+    def __init__(self, name, table, columns):
+        self.name = name
+        self.table = table
+        self.columns = columns
+    def __str__(self):
+        return "Index(%s) on table %s, columns %s" % (self.name, self.table, self.columns)
+
 class FilemanError(Exception):
     pass
 
@@ -206,7 +215,7 @@ class _DD(object):
         Load the data dictionary for a FILE
     """
     _fileid = None
-    _fields = None
+    _indices = _fields = None
     filename = None
     attrs = None
 
@@ -230,6 +239,38 @@ class _DD(object):
             if rv != '':
                 self._fileid = rv
         return self._fileid
+
+    @property
+    def indices(self):
+        """
+            Return a list of the indices
+            # Indices are recorded as
+
+            GTM>zwrite ^DD(200,0,"IX",*)
+            ^DD(200,0,"IX","A",200,2)=""
+            ^DD(200,0,"IX","A16",200,8980.16)=""
+            ^DD(200,0,"IX","AASWB",200,654)=""
+        """
+        if self._indices is None:
+            self._indices = i = []
+
+            indexid = "0"
+            global_name = '^DD(%s,0,"IX","0")' % self.fileid
+            prefix = '^DD(%s,0,"IX",' % self.fileid
+            while 1:
+                global_name = M.mexec('set s0=$query(%s)' % global_name, M.INOUT(""))[0]
+                if not global_name or not global_name.startswith(prefix):
+                    break
+                print global_name
+                suffix = global_name[len(prefix):-1]
+                parts = suffix.split(",")
+                idx_name = parts[0][1:-1]
+                idx_table = parts[1]
+                idx_columns = parts[2:]
+                index = Index(idx_name, idx_table, idx_columns)
+                i.append(index)
+
+        return self._indices
 
     @property
     def fields(self):
@@ -276,6 +317,9 @@ class _DD(object):
         rv = ["Data Dictionary for %s (%s)" % (self.filename, self.fileid)]
         for fieldid in sorted(self.fields.keys()):
             rv.append('\t' + str(self.fields[fieldid]))
+        for index in self.indices:
+            rv.append('\t' + str(index))
+
         return '\n'.join(rv)
 
 
