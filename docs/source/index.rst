@@ -59,6 +59,7 @@ Contents
 
    _gtm
    M
+   fileman
 
 Contributing
 ------------

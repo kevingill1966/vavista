@@ -79,14 +79,21 @@ class Field(object):
         """
             Determine whether the flags spec provided represents that type of Field
         """
-        assert 0, "Must be implemented in Sub-Class"
+        # Strip leading, non-type specific flags
+        for i in range(len(flags)):
+            if flags and flags[0] == 'R':
+                flags = flags[1:] # strip of mandatory flag
+            #elif flags and flags[0] == '*':
+            #    flags = flags[1:] # What is this one?
+            else:
+                break
+        return cls.c_isa(flags)
 
 class FieldDatetime(Field):
     fmql_type = FT_DATETIME
 
     @classmethod
-    def isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
+    def c_isa(cls, flags):
         return flags and flags[0] == 'D'
  
 class FieldNumeric(Field):
@@ -103,7 +110,7 @@ class FieldNumeric(Field):
     fmql_type = FT_NUMERIC
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'N'
  
@@ -111,7 +118,7 @@ class FieldText(Field):
     fmql_type = FT_TEXT
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'F'
 
@@ -121,7 +128,7 @@ class FieldSet(Field):
         self.details = [i.split(":",1) for i in fieldinfo[2].split(';') if i]
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'S'
 
@@ -129,7 +136,7 @@ class FieldWP(Field):
     fmql_type = FT_WP
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         n=""
         for c in flags:
@@ -144,7 +151,7 @@ class FieldComputed(Field):
     fmql_type = FT_COMPUTED
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'C'
 
@@ -152,7 +159,7 @@ class FieldPointer(Field):
     fmql_type = FT_POINTER
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'P'
 
@@ -160,7 +167,7 @@ class FieldVPointer(Field):
     fmql_type = FT_VPOINTER
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'V'
 
@@ -168,7 +175,7 @@ class FieldMUMPS(Field):
     fmql_type = FT_MUMPS
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'K'
 
@@ -176,7 +183,7 @@ class FieldSubfile(Field):
     fmql_type = FT_SUBFILE
 
     @classmethod
-    def isa(cls, flags):
+    def c_isa(cls, flags):
         if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         n=""
         for c in flags:
@@ -255,7 +262,9 @@ class _DD(object):
                             finst = f[fieldid] = klass(fieldid, label, info)
                             attrs[label] = fieldid
                             break
-                    assert finst, "FIELD [%s], spec [%s] was not identified" % (label, ftype)
+                    if finst is None:
+                        print finst, "FIELD [%s], spec [%s] was not identified" % (label, ftype)
+                        continue
                     finst.title = title
                     finst.fieldhelp = fieldhelp
                 else:
