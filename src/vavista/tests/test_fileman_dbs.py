@@ -15,12 +15,22 @@ class TestDBS(unittest.TestCase):
         pass
 
     def test_fileid(self):
-        rv = self.dbs.fileid("FILE")
-        self.assertEqual(rv, "1")
+        file = self.dbs.get_file("FILE")
+        self.assertEqual(file.dd.fileid, "1")
+        print file.get("1")
 
     def test_list_files(self):
         rv = self.dbs.list_files()
         #TODO: Check a value
+
+    def test_dd(self):
+        """
+            I created this file via Fileman to test
+        """
+        dd = self.dbs.dd("KEVIN1")
+        self.assertEqual(dd.fileid, "999900")
+        dd.fileid
+        f = dd.fields
 
     def test_fileget(self):
         file = self.dbs.get_file("OPTION")
