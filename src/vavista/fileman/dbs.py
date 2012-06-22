@@ -14,6 +14,8 @@ for file 999900
 
 from vavista import M
 
+#---- [ Data Dictionary ]------------------------------------------------------------------
+
 # As per fm22_0um.pdf page 9-3
 FT_DATETIME=1
 FT_NUMERIC=2
@@ -28,7 +30,7 @@ FT_SUBFILE=10
 
 class Field(object):
     fmql_type = None
-    name = None
+    label = None
     fieldid = None
 
     # Storage is the global sub-index and either a "PIECE" within that value (1-99)
@@ -41,15 +43,15 @@ class Field(object):
     title = None
     fieldhelp = None
 
-    def __init__(self, fieldid, name, fieldinfo):
-        self.name = name
+    def __init__(self, fieldid, label, fieldinfo):
+        self.label = label
         self.fieldid = fieldid
         self._fieldinfo = fieldinfo # should not be used (debugging data)
         try:
             self.storage = fieldinfo[3]
         except:
             pass
-        typespec = fieldinfo[0]
+        typespec = fieldinfo[1]
         self.mandatory = 'R' in typespec
         self.details = fieldinfo[2]
         if len(fieldinfo) > 4 and fieldinfo[4]:
@@ -70,7 +72,7 @@ class Field(object):
         if self.title: msgs.append("title='%s'" % self.title)
         if self.fieldhelp: msgs.append("fieldhelp='%s'" % self.fieldhelp)
         msgs.append("flags=%s" % self._fieldinfo[1])
-        return "%s(%s=%s) %s" % (self.__class__.__name__, self.fieldid, self.name, " ".join(msgs))
+        return "%s(%s=%s) %s" % (self.__class__.__name__, self.fieldid, self.label, " ".join(msgs))
 
     @classmethod
     def isa(cls, flags):
@@ -198,12 +200,13 @@ class _DD(object):
     """
     _fileid = None
     _fields = None
-    name = None
+    filename = None
+    attrs = None
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, filename):
+        self.filename = filename
 
-    def _clean_name(self, s):
+    def _clean_label(self, s):
         s = s.lower()
         s = ''.join([c for c in s if c in "_abcdefghijklmnopqrstuvwxyz0123456789 "])
         s = s.replace(' ', '_')
@@ -216,7 +219,7 @@ class _DD(object):
             e.g. FILE = 1 - result is a string.
         """
         if self._fileid is None:
-            rv = M.mexec('''set s1=$order(^DIC("B",s0,0))''', self.name, M.INOUT(""))[0]
+            rv = M.mexec('''set s1=$order(^DIC("B",s0,0))''', self.filename, M.INOUT(""))[0]
             if rv != '':
                 self._fileid = rv
         return self._fileid
@@ -226,10 +229,10 @@ class _DD(object):
         """
             Return information about the dd fields
         """
-
-        M.mexec('set U="^"') # DBS Calls Require this
         if self._fields is None:
+            M.mexec('set U="^"') # DBS Calls Require this
             f = self._fields = {}
+            attrs = self.attrs = {}
             fieldid = "0"
             while 1:
                 # Subscript 0 is field description, .1 is the title, 3 is help
@@ -240,7 +243,7 @@ class _DD(object):
                     break
 
                 info = info.split("^") 
-                name = self._clean_name(info[0])
+                label = self._clean_label(info[0])
                 try:
                     ftype = info[1]
                 except:
@@ -249,26 +252,78 @@ class _DD(object):
                     finst = None
                     for klass in FIELD_TYPES:
                         if klass.isa(ftype):
-                            finst = f[fieldid] = klass(fieldid, name, info)
+                            finst = f[fieldid] = klass(fieldid, label, info)
+                            attrs[label] = fieldid
                             break
-                    assert finst, "FIELD [%s], spec [%s] was not identified" % (name, ftype)
+                    assert finst, "FIELD [%s], spec [%s] was not identified" % (label, ftype)
                     finst.title = title
                     finst.fieldhelp = fieldhelp
-                    print '\t', finst
                 else:
-                    assert finst, "FIELD [%s] %s has no fieldspec" % (name, info)
+                    assert finst, "FIELD [%s] %s has no fieldspec" % (label, info)
 
         return self._fields
 
+    def __str__(self):
+        rv = ["Data Dictionary for %s (%s)" % (self.filename, self.fileid)]
+        for fieldid in sorted(self.fields.keys()):
+            rv.append('\t' + str(self.fields[fieldid]))
+        return '\n'.join(rv)
 
-def DD(name, cache={}):
+
+def DD(filename, cache={}):
     """
         Simple mechanism to cache DD objects.
     """
-    if name not in cache:
-        cache[name] = _DD(name)
-    return cache[name]
+    if filename not in cache:
+        cache[filename] = _DD(filename)
+    return cache[filename]
     
+#---- [ Data Access ]------------------------------------------------------------------
+
+class DBSRow(object):
+    """
+        Single Row - Created by DBSFile
+
+        Access either by id:   row["0.1"]
+        or label:              row["name"]
+
+
+        TODO:
+        I need to add update logic to the rows so I can write to them
+        What about the other values, e.g. subfiles, wp files - do they come across.
+    """
+    def __init__(self, dbsfile, meta, data):
+        self._dbsfile = dbsfile
+        self._fields = meta.fields
+        self._meta = meta
+        self._data = data
+
+    # TODO: these methods may conflict with property names.
+    def keys(self):
+        return self._data.keys()
+    def items(self):
+        return self._data.items()
+
+    def __getitem__(self, fieldid, default=None):
+        fieldid = str(fieldid)
+        if fieldid in self._fields:
+            for k, v in self._data:
+                if k == fieldid: return v
+            return default
+        raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
+            (self._meta.fileid, self._meta.name))
+
+    def __getattr__(self, key):
+        """
+            Called for misses
+        """
+        fieldid = self._meta.attrs.get(key, None)
+        if fieldid is not None:
+            for k, v in self._data:
+                if k == fieldid: return v
+            return default
+        raise AttributeError(key)
+
 class DBSFile(object):
     dd = None
 
@@ -282,9 +337,7 @@ class DBSFile(object):
     def get(self, rowid, fieldids=None):
         """
             Retrieve a row using the rowid.
-            Return a dictionary of fieldids mapped to values
-            If fieldids is not None, then we are only interested in the
-            named fields.
+            If fieldids is not None, then we are only interested in the named fields.
             Do not load sub-tables.
 
             TODO: lots
@@ -295,7 +348,7 @@ class DBSFile(object):
             self.dd.fileid,      # numeric file id
             iens,                # IENS
             "*",                 # Fields to return
-            "NR",                # Flags N=no nulls, R=return field names
+            "N",                # Flags N=no nulls, R=return field names
             "ROW",
             "ERR")
 
@@ -307,8 +360,8 @@ class DBSFile(object):
                 % (self.dd.name, self.dd.fileid, rowid, fieldids), str(err))
 
         # Return result
-        result = g["ROW"][self.dd.fileid][iens]
-        return result.items()
+        record = DBSRow(self, self.dd, g["ROW"][self.dd.fileid][iens].items())
+        return record
 
 class DBS(object):
 
@@ -318,6 +371,7 @@ class DBS(object):
         self.DUZ = DUZ
         self.DT = DT
         self.isProgrammer = isProgrammer
+
     def list_files(self):
         """
             Oddly, I cannot see how to list the files using the DBS API.

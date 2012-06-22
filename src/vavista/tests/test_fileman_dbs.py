@@ -29,8 +29,8 @@ class TestDBS(unittest.TestCase):
         """
         dd = self.dbs.dd("KEVIN1")
         self.assertEqual(dd.fileid, "999900")
-        dd.fileid
-        f = dd.fields
+        print '\n'
+        print dd
 
     def test_fileget(self):
         file = self.dbs.get_file("OPTION")
