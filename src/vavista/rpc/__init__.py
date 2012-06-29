@@ -1,7 +1,7 @@
 
 import logging
 
-from brokerRPC import VistARPCConnection, PLiteral, PList, PReference, PGlobal, PEncoded
+from brokerRPC import VistARPCConnection, PLiteral, PList, PReference, PEncoded
 
 class RPCLogger:
     def __init__(self, debug=False):

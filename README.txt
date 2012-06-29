@@ -7,28 +7,15 @@ read, write, lock and delete globals.
 
 import vavista.M                # Mumps API
 import vavista.fileman          # work with fileman files (new APIs and utilities)
+import vavista.rpc              # New style RPC API
 
-vista.M
--------
 
-    Low Level API
+To install:
 
-        vista.M.mexec(Code, parameters)
-        vista.M.proc(ProcedureName, parameters)
-        vista.M.func(FunctionName, parameters)
+    sudo PATH=/usr/local/gtm:$PATH gtm_dist=$gtm_dist python setup.py install
 
-    High Level API
+To build docs:
 
-        # Note globals commencing with ^ are persistent
-        # all indexes are strings
+    python setup.py build_sphinx
 
-        g = vista.M.Globals()
-        g['^gl']['0'].keys()        # only keys with values
-        g['^gl']['0'].items()       # key / value return (no decendant info)
-        g['^gl']['0'].value         # single value
-        g['^gl']['0'].has_value()
-        g['^gl']['0'].has_decendants()
-        g['^gl']['0'].keys_with_decendants()
-
-        g['^gl']['0'].kill()         # kill value and decendants
 

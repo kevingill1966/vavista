@@ -1,5 +1,5 @@
-rpc (Python access to VistA RPCs)
-=================================
+vavista.rpc (Python access to VistA RPCs)
+=========================================
 
 Credit
 ------
@@ -7,7 +7,12 @@ Credit
 This code belongs to Caregraph.org's FMQL product. I put it here for ease of
 reuse.
 
-Reference: XWBPRS.m
+Dependencies
+------------
+
+The vavista.rpc module does not depend on the M interfaces modules, i.e.
+it is not bound to a GT.M interpreter. It communicates client server over
+a TCP connection.
 
 Application Context
 -------------------
@@ -63,14 +68,16 @@ RPCs have the following return types::
 
 Parameters can be::
 
-       LITERAL - PLiteral
-       REFERENCE - PReference
-       LIST - PList
-       GLOBAL - PGlobal
+       1        LITERAL - PLiteral
+       2        LIST - PList
+       2        Word Processing - PLiteral
+       4        REFERENCE - PReference
 
 VistARPCConnection
 ------------------
-::
+
+Create a connection::
+
     from vavista import rpc
     c = rpc.connect(hostname, port, access-code, verify-code, context, debug=False)
 
@@ -80,15 +87,16 @@ VistARPCConnection
 
 This function creates a connection to the VISTA RPC server.
 
-Methods::
+Methods
+
+invokeRPC calls the rpc named, and returns a raw version of the response.::
 
     c.invokeRPC(rpcid, [parameters], mergeresults=True)
 
-This method calls the rpc named, and returns a raw version of the response.
+invoke trys to convert the response to a list where it is an array.  ::
 
     c.invoke(rpcid, [parameters], mergeresults=True)
 
-This method trys to convert the response to a list where it is an array. 
 
 Parameter Types
 ---------------
@@ -99,7 +107,6 @@ type to the encoded string for the wire.::
     PLiteral   - value is a literal
     PList      - value is a list
     PReference - value is a reference
-    PGlobal    - value is a global
     PEncoded   - the application encode the value, pass it straight through
     
 If a parameter is not one of the above, if it is a dict, it is passed as a List,
@@ -111,7 +118,7 @@ Example Code
 From prompt::
 
     $ python
-    >>> from vavista.rpc import connect, PLiteral, PList, PReference, PGlobal, PEncoded
+    >>> from vavista.rpc import connect, PLiteral, PList, PReference, PEncoded
     >>> c = connect('localhost', 9210, "VISTAIS#1", "#1ISVISTA", "RPC DEMO", debug=True)
 
     >>> print c.invoke("XWB EGCHO STRING", [PLiteral("THIS IS A STRING")])
@@ -150,10 +157,16 @@ From prompt::
     # By default, the chunks of a message are merged before returning them.
     # You can inhibit this behaviour using the mergeresults flag
     >>> print c.invokeRPC("XWB EXAMPLE WPTEXT", mergeresults=False)
+    ['This file is used as a repository ...
 
-    # TODO: Examples of Global and Reference parameters.
+    # Reference parameters are passed using the PReference type.
+    >>> print c.invokeRPC("XWB GET VARIABLE VALUE", [PReference("DUZ")])
+    10000000020
+    >>> print c.invokeRPC("XWB GET VARIABLE VALUE", [PReference("DUZ(0)")])
+    @
 
 Simple script::
+
     import getopt, sys
 
     from vavista.rpc import connect
@@ -162,8 +175,9 @@ Simple script::
 
     opts, args = getopt.getopt(sys.argv[1:], "")
     if len(args) < 4:
-        print "Enter <host> <port> <access> <verify>"
-        return
+        print args
+        sys.stderr.write("Enter <host> <port> <access> <verify>\n")
+        sys.exit(1)
 
     host, port, access, verify = args[0], int(args[1]), args[2], args[3]
 
@@ -173,12 +187,20 @@ Simple script::
     print c.invoke("XWB EGCHO STRING", ["THIS IS A STRING"])
 
     # This "list" RPC returns a list of items delimited by the DOS line ending
-    l = c.invoke("XWB EGCHO LIST")
-    print [row for row in l.split("\r\n") if row]
+    print c.invoke("XWB EGCHO LIST")
 
     # This "list" RPC returns a list of items delimited by the DOS line ending
     l = c.invoke("XWB EGCHO BIG LIST")
-    print len([row for row in l.split("\r\n") if row])
+    print l[:5], " ... ", l[-5:]
 
     # This is how 'arrays' are passed
     print c.invoke("XWB EGCHO SORT LIST", ["HI", {'1': '', '10': '', '190': 'x', '89': ''}])
+
+References
+----------
+
+ - XWBPRS.m
+
+ - http://www.caregraf.org
+
+ - http://www.va.gov/vdl/application.asp?appid=23

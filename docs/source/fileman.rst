@@ -1,6 +1,6 @@
 
-fileman (api for working with fileman files)
-============================================
+vavista.fileman (api for working with fileman files)
+====================================================
 
 This is currently under development. 
 

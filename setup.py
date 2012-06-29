@@ -15,8 +15,11 @@ class compile_m(install_data):
     """
         Compile the mumps source file
 
-        TODO: I need a post-install step to compile the .m file. Otherwise
+        I need a post-install step to compile the .m file. Otherwise
         the first time this package is run, it must be run as root.
+
+        Don't fail to install if this does not compile. Other parts of 
+        the package, such as RPCs will still work.
     """
     def run(self):
         install_data.run(self)

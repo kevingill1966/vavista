@@ -76,8 +76,10 @@ class PList(Param):
         rv += self.end_marker
         return rv
 
-class PGlobal(PLiteral):
-    type_marker = "3" # Type of RPC: Global
+# I cannot see where this is implemented in the client side. Logic is
+# in XWBPRS.m
+#class PGlobal(PLiteral):
+#   type_marker = "3" # Type of RPC: Global
 
 class PEncoded(Param):
     """Value was encoded by the caller"""
