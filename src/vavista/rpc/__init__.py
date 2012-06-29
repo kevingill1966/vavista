@@ -1,7 +1,7 @@
 
 import logging
 
-from brokerRPC import VistARPCConnection
+from brokerRPC import VistARPCConnection, PLiteral, PList, PReference, PGlobal, PEncoded
 
 class RPCLogger:
     def __init__(self, debug=False):
@@ -17,13 +17,13 @@ class RPCLogger:
         self.logger.error("%s %s", tag, msg)
 
 class _RPCConnection(VistARPCConnection):
-    def invoke(self, name, params=[]):
+    def invoke(self, name, params=[], mergeresults=True):
         """
             Try to understand the return values.
         """
-        rv = self.invokeRPC(name, params)
-        if rv:
-            if rv.find('\r\n'):
+        rv = self.invokeRPC(name, params, mergeresults=mergeresults)
+        if rv and mergeresults:
+            if rv.find('\r\n') != -1:
                 rv = rv.split('\r\n')
                 if rv and not rv[-1]:
                     rv = rv[:-1]

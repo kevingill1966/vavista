@@ -33,6 +33,60 @@ import time
 import socket
 from random import randint
 
+class Param:
+    end_marker = "f"  # End
+    pass
+
+class PLiteral(Param):
+    type_marker = "0" # Type of RPC: Literal
+    def __init__(self, value):
+        if value is None:
+            self.value = ""
+        else:
+            self.value = str(value)
+    def __str__(self):
+        rv  = self.type_marker
+        rv += str(len(self.value)).zfill(3) + str(self.value) # L-PACK
+        rv += self.end_marker
+        return rv
+
+class PReference(PLiteral):
+    type_marker = "1" # Type of RPC: Reference
+
+class PList(Param):
+    type_marker = "2" # Type of RPC: array
+    def __init__(self, value):
+        self.value = value
+        assert type(value) in [dict, list], "Array types must be dict or list of tuples"
+    def __str__(self):
+        if type(self.value) == dict:
+            value = self.value.items()
+        else:
+            value = self.value
+
+        rv = self.type_marker
+        between_values = False # keep track of where to put the t's
+        for key, val in value:
+            if between_values:
+                rv += "t" # t is the delimiter b/n each key,val pair
+            else:
+                between_values = True
+            rv += str(len(str(key))).zfill(3) + str(key) # L-PACK
+            rv += str(len(str(val))).zfill(3) + str(val) # L-PACK
+        rv += self.end_marker
+        return rv
+
+class PGlobal(PLiteral):
+    type_marker = "3" # Type of RPC: Global
+
+class PEncoded(Param):
+    """Value was encoded by the caller"""
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return self.value
+    
+
 class RPCConnection(object):
 
     """
@@ -82,7 +136,7 @@ class RPCConnection(object):
 
         self.sock = None
     
-    def invokeRPC(self, name, params=[]):
+    def invokeRPC(self, name, params=[], mergeresults=True):
         """    
         Invoke an RPC. If the connection is closed, try to reopen it once. If fail
         again then raise an exception. This takes care of connection time outs
@@ -99,7 +153,7 @@ class RPCConnection(object):
             request = self.makeRequest(name, params)
             self.logger.logInfo("REQUEST", repr(request))
             self.sock.send(request)
-            msg = self.readToEndMarker()
+            msg = self.readToEndMarker(mergeresults)
         except socket.error as e:
             msg = ""
         # remote end closed so reconnect and retry.
@@ -108,7 +162,7 @@ class RPCConnection(object):
             self.connect()
             request = self.makeRequest(name, params)
             self.sock.send(request)
-            msg = self.readToEndMarker()
+            msg = self.readToEndMarker(mergeresults)
         return msg
 
     def connect(self):
@@ -142,7 +196,7 @@ class RPCConnection(object):
         cval += chr(rb + 32)
         return cval.encode("utf-8")
         
-    def readToEndMarker(self):
+    def readToEndMarker(self, mergeresults=True):
         """
         Endmarker:
         - VISTA: chr(4)
@@ -171,9 +225,12 @@ class RPCConnection(object):
                 msgChunks.append(msgChunk[:-1])
                 break
             msgChunks.append(msgChunk)
-        if len(msgChunks):
+        if mergeresults and len(msgChunks):
             msg = "".join(msgChunks)
-        self.logger.logInfo("RPCConnection", "Message of length %d received in %d chunks on connection %d" % (len(msg), noChunks, self.poolId))
+            self.logger.logInfo("RPCConnection", "Message of length %d received in %d chunks on connection %d" % (len(msg), noChunks, self.poolId))
+        else:
+            self.logger.logInfo("RPCConnection", "Message of length %d received in %d chunks on connection %d" % (sum([len(c) for c in msgChunks]), noChunks, self.poolId))
+            msg = msgChunks
         return msg
 
 class VistARPCConnection(RPCConnection):
@@ -224,6 +281,7 @@ class VistARPCConnection(RPCConnection):
         name = Name of RPC
         params = comma delimit list of paramters
         isCommand = reserved for internal use. If you really want to know, it's for connecting or disconnecting.
+
         """
 
         # Header saying that
@@ -242,24 +300,32 @@ class VistARPCConnection(RPCConnection):
         namespec = chr(len(name)) + name    # format name S-PACK
         
         paramsspecs = "5" # means that what follows is Params to RPC
+
+        # type 0 - literal
+        # type 1 - reference
+        # type 2 - array (dict in python)
+        # type 3 - global
         
         if not len(params):  # if no paramters do this and done
             paramsspecs += "4" + "f"
         else: # if there are paramters
             for param in params:
-                if type(param) is not dict:
-                    paramsspecs += "0" # Type of RPC: Literal
-                    paramsspecs += str(len(param)).zfill(3) + str(param) # L-PACK
-                    paramsspecs += "f"  # End
-                else: # we are in a dictionary
-                    paramsspecs += "2" # Type of RPC: List
-                    paramIndex = 1 # keep track of where to put the t's
-                    for key,val in param.items():
-                        if paramIndex > 1: paramsspecs += "t" # t is the delimiter b/n each key,val pair
-                        paramsspecs += str(len(str(key))).zfill(3) + str(key) # L-PACK
-                        paramsspecs += str(len(str(val))).zfill(3) + str(val) # L-PACK
-                        paramIndex += 1
-                    paramsspecs += "f" # close list
+                if isinstance(param, Param):
+                    paramsspecs += str(param)
+                else:
+                    if type(param) is not dict:
+                        paramsspecs += "0" # Type of RPC: Literal
+                        paramsspecs += str(len(param)).zfill(3) + str(param) # L-PACK
+                        paramsspecs += "f"  # End
+                    else: # we are in a dictionary
+                        paramsspecs += "2" # Type of RPC: List
+                        paramIndex = 1 # keep track of where to put the t's
+                        for key,val in param.items():
+                            if paramIndex > 1: paramsspecs += "t" # t is the delimiter b/n each key,val pair
+                            paramsspecs += str(len(str(key))).zfill(3) + str(key) # L-PACK
+                            paramsspecs += str(len(str(val))).zfill(3) + str(val) # L-PACK
+                            paramIndex += 1
+                        paramsspecs += "f" # close list
 
         endtoken = chr(4)
         return protocoltoken + commandtoken + namespec + paramsspecs + endtoken     
