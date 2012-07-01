@@ -335,21 +335,50 @@ def DD(filename, cache={}):
 
 class DBSRow(object):
     """
-        Single Row - Created by DBSFile
+        This is the key to the whole implementation.  This object maps to a single row
+        in the Fileman global. You use it to retrieve fields from that row and to update
+        that row. This class has to take care of conversions between Python and M, and
+        to ensure that the integrity of the M data store is not violated.
 
         Access either by id:   row["0.1"]
         or label:              row["name"]
 
-
-        TODO:
+        TODO: lots
         I need to add update logic to the rows so I can write to them
         What about the other values, e.g. subfiles, wp files - do they come across.
     """
-    def __init__(self, dbsfile, meta, data):
+    def __init__(self, dbsfile, dd, rowid, fieldids):
         self._dbsfile = dbsfile
-        self._fields = meta.fields
-        self._meta = meta
-        self._data = data
+        self._dd = dd
+        self._rowid = rowid
+
+        if fieldids:
+            self._fields = dict([(k,v) for (k,v) in dd.fields if v.fieldid in fieldids])
+        else:
+            self._fields = dd.fields
+
+        # Lazy evaluation
+        self.__data = None
+
+    @property
+    def _data(self):
+        # for lazy evaluation
+        if self.__data is None:
+            self.retrieve()
+        return self.__data
+
+    @property
+    def _iens(self):
+        return str(self._rowid) + ","
+
+    def __str__(self):
+        fields = self._dd.fields
+        rv = ['DBSRow file=%s, fileid=%s, rowid=%s' % (self._dd.filename, self._dd.fileid, self._rowid)]
+        keys = self.keys()
+        keys.sort()
+        for k in keys:
+            rv.append('%s (%s) = "%s"' % (k, fields[k].label, self[k]))
+        return '\n'.join(rv)
 
     # TODO: these methods may conflict with property names.
     def keys(self):
@@ -358,49 +387,27 @@ class DBSRow(object):
         return self._data.items()
 
     def __getitem__(self, fieldid, default=None):
-        fieldid = str(fieldid)
-        if fieldid in self._fields:
-            for k, v in self._data:
-                if k == fieldid: return v
-            return default
-        raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
-            (self._meta.fileid, self._meta.name))
+        try:
+            return self._data[str(fieldid)]
+        except:
+            raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
+                (self._dd.fileid, self._dd.filename), fieldid)
 
     def __getattr__(self, key):
         """
             Called for misses
         """
-        fieldid = self._meta.attrs.get(key, None)
+        fieldid = self._dd.attrs.get(key, None)
         if fieldid is not None:
-            for k, v in self._data:
-                if k == fieldid: return v
-            return default
+            return self[fieldid]
         raise AttributeError(key)
 
-class DBSFile(object):
-    dd = None
-
-    def __init__(self, dd):
-        self.dd = dd
-        assert (dd.fileid is not None)
-
-    def __str__(self):
-        return "DBSFILE %s (%s)" % (self.dd.name, self.dd.fileid)
-
-    def get(self, rowid, fieldids=None):
-        """
-            Retrieve a row using the rowid.
-            If fieldids is not None, then we are only interested in the named fields.
-            Do not load sub-tables.
-
-            TODO: lots
-        """
+    def _retrieve(self):
         M.mexec("kill ROW,ERR")
-        iens = str(rowid) + ","
         M.proc("GETS^DIQ",
-            self.dd.fileid,      # numeric file id
-            iens,                # IENS
-            "*",                 # Fields to return
+            self._dd.fileid,      # numeric file id
+            self._iens,           # IENS
+            "*",                 # Fields to return TODO
             "N",                # Flags N=no nulls, R=return field names
             "ROW",
             "ERR")
@@ -410,12 +417,36 @@ class DBSFile(object):
         err = g["ERR"]
         if err.exists():
             raise FilemanError("""DBSFIle.get() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], fieldids = [%s]"""
-                % (self.dd.name, self.dd.fileid, rowid, fieldids), str(err))
+                % (self._dd.filename, self._dd.fileid, self._rowid, "*"), str(err))
 
-        # Return result
-        record = DBSRow(self, self.dd, g["ROW"][self.dd.fileid][iens].items())
+        # Extract the result and store in python variable
+        self.__data = dict(g["ROW"][self._dd.fileid][self._iens])
+
+class DBSFile(object):
+    """
+        This class provides mechanisms to return rows.
+        Currently only "get" is provided which returns one row identified by an id.
+        I want to provide search functionality in this class.
+    """
+    dd = None
+
+    def __init__(self, dd):
+        self.dd = dd
+        assert (dd.fileid is not None)
+
+    def __str__(self):
+        return "DBSFILE %s (%s)" % (self.dd.filename, self.dd.fileid)
+
+    def get(self, rowid, fieldids=None):
+        """
+            The logic to retrieve and update the row is in the DBSRow class.
+            This call constructs a DBSRow class, and verifies that
+            the row exists in the database.
+        """
+        record = DBSRow(self, self.dd, rowid, fieldids=fieldids)
+        record._retrieve() # raises exception on failure
         return record
-
+            
 class DBS(object):
 
     def __init__(self, DUZ, DT, isProgrammer=False):

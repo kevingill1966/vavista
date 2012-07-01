@@ -103,7 +103,7 @@ class Global(object):
         return Global(self.path + [str(key)])
 
     def printable(self):
-        rv = []
+        rv = [self.value]
         for k, v in self.items():
             rv.append('%s.%s = "%s"' % (".".join(self.path), k, v))
         for k in self.keys_with_decendants():

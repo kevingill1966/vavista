@@ -9,7 +9,6 @@ class TestDBS(unittest.TestCase):
 
     def setUp(self):
         self.dbs = DBS("0", "")
-        pass
 
     def tearDown(self):
         pass
@@ -17,7 +16,8 @@ class TestDBS(unittest.TestCase):
     def test_fileid(self):
         file = self.dbs.get_file("FILE")
         self.assertEqual(file.dd.fileid, "1")
-        print file.get("1")
+        self.assertEqual(file.get("1")[".01"].value, "FILE")
+        self.assertEqual(file.get("1").name.value, "FILE")
 
     def test_list_files(self):
         rv = self.dbs.list_files()
