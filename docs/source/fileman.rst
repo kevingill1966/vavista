@@ -40,4 +40,5 @@ Example::
     dbs = DBS("0", "")
     patients = dbs.get_file('PATIENT')
     patient1 = patients.get('1')
+    print patient1
 

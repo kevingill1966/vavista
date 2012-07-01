@@ -377,7 +377,14 @@ class DBSRow(object):
         keys = self.keys()
         keys.sort()
         for k in keys:
-            rv.append('%s (%s) = "%s"' % (k, fields[k].label, self[k]))
+            v = self.__data.get(k)
+            if v:
+                f = fields.get(k)
+                if f:
+                    fn = f.label
+                else:
+                    fn = "not in dd"
+                rv.append('%s (%s) = "%s"' % (fn, k, v))
         return '\n'.join(rv)
 
     # TODO: these methods may conflict with property names.
