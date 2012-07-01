@@ -1,21 +1,23 @@
 vavista.rpc (Python access to VistA RPCs)
 =========================================
 
-Credit
-------
-
-This code belongs to Caregraph.org's FMQL product. I put it here for ease of
-reuse.
-
-Dependencies
-------------
+The vavista.rpc module provides a very simple mechanism for calling VistA RPCs.
+Simply connect, and call the PRC you are interested in.
 
 The vavista.rpc module does not depend on the M interfaces modules, i.e.
 it is not bound to a GT.M interpreter. It communicates client server over
 a TCP connection.
 
-Application Context
--------------------
+Credit
+------
+
+The brokerRPC.py code belongs to Caregraph.org's FMQL product. I put it here for ease of
+reuse.
+
+Setup Information
+-----------------
+
+**Application Context**
 
 In order to access RPCs in Vista, you need to have a valid Application Context Id. 
 
@@ -32,8 +34,7 @@ public RPCs should be available. ::
     MENU TEXT: RPC DEMO// 
     TYPE: B  Broker (Client/Server)
 
-RPC Port
---------
+**RPC Port**
 
 VistA provides a RPC (remote procedure call) broker. This sits on an agreed port.
 
@@ -44,8 +45,7 @@ it and returns a response. The mechanism is single-threaded and synchronous.
 9210 - where is this configured ?? TODO RPC BROKER SITE PARAMETERS seems do describe
 other sites configurations, not this sites.
 
-How RPCs are Configured in Vista
---------------------------------
+**How individual Requests are Configured in Vista**
 
 The available RPCs are listed in Fileman file "REMOTE PROCEDURE" (8994).
 
@@ -73,30 +73,33 @@ Parameters can be::
        2        Word Processing - PLiteral
        4        REFERENCE - PReference
 
-VistARPCConnection
-------------------
+connect
+-------
 
 Create a connection::
 
-    from vavista import rpc
+    from vavista import rpc, PLiteral, PList, PReference
     c = rpc.connect(hostname, port, access-code, verify-code, context, debug=False)
 
-        - vista's security (access, verify)
+        - TCP communication information (hostname, port)
+        - VistA's security (access, verify)
         - application context - See note above
         - the debug flag is useful for interactive use.
 
 This function creates a connection to the VISTA RPC server.
 
-Methods
+**Methods**
 
-invokeRPC calls the rpc named, and returns a raw version of the response.::
+invoke calls the rpc identified by rpcid, passing through all parameters.
+l_invoke converts the response to a list (spliting in '\r\n').  ::
 
-    c.invokeRPC(rpcid, [parameters], mergeresults=True)
+    c.invoke(rpcid, [param1, [param2, ... [param n]], return_formatter=None)
+    c.l_invoke(rpcid, [param1, [param2, ... [param n]])
 
-invoke trys to convert the response to a list where it is an array.  ::
-
-    c.invoke(rpcid, [parameters], mergeresults=True)
-
+return_formatter is a function, which take one parameter, the return value. 
+If a return_formatter is passed in, it processes the return value, before 
+the invoke method returns. An example is the list formatter, which is passed
+in by the l_invoke method.
 
 Parameter Types
 ---------------
@@ -109,8 +112,8 @@ type to the encoded string for the wire.::
     PReference - value is a reference
     PEncoded   - the application encode the value, pass it straight through
     
-If a parameter is not one of the above, if it is a dict, it is passed as a List,
-otherwise it is passed as a literal.
+If a parameter is not one of the above, if it is a dict, it is passed as a PList,
+otherwise it is passed as a PLiteral.
 
 Example Code
 ------------
@@ -121,55 +124,51 @@ From prompt::
     >>> from vavista.rpc import connect, PLiteral, PList, PReference, PEncoded
     >>> c = connect('localhost', 9210, "VISTAIS#1", "#1ISVISTA", "RPC DEMO", debug=True)
 
-    >>> print c.invoke("XWB EGCHO STRING", [PLiteral("THIS IS A STRING")])
+    >>> print c.invoke("XWB EGCHO STRING", PLiteral("THIS IS A STRING"))
     THIS IS A STRING
 
     # types other than dicts default to type PLiteral
-    >>> print c.invoke("XWB EGCHO STRING", ["THIS IS A STRING"])
+    >>> print c.invoke("XWB EGCHO STRING", "THIS IS A STRING")
     THIS IS A STRING
 
-    # If the return type contains DOS line feeds '\r\n' the result is assumed
-    # to be a list
-    >>> print c.invoke("XWB EGCHO LIST")[:4]
-    ['List Item #1', 'List Item #2', 'List Item #3', 'List Item #4']
-
-    # However, you can get the raw return value if you need it
-    >>> print c.invokeRPC("XWB EGCHO LIST")[:50]
+    # If the return type is a List, under normal conventions, the return
+    # values are separated via '\r\n' characters.
+    >>> print c.invoke("XWB EGCHO LIST")[:50]
     List Item #1
     List Item #2
     List Item #3
     List Ite
 
+    # However, you can make the call extract the return type
+    >>> print c.l_invoke("XWB EGCHO LIST")[:4]
+    ['List Item #1', 'List Item #2', 'List Item #3', 'List Item #4']
+
     # This is how to pass an Array - M does not have a real concept of arrays.
     # It just has a dict style data type. This can be generated by either an list of 
     # tuples or a dict.
-    >>> print c.invoke("XWB EGCHO SORT LIST", ["LO", PList([('1', ''), ('10', ''), ('190', 'x'), ('89', '')])])
+    >>> print c.invoke("XWB EGCHO SORT LIST", "LO", PList([('1', ''), ('10', ''), ('190', ''), ('89', '')]))
     ['1', '10', '89', '190']
 
     # A dict is assumed to be a list
-    >>> print c.invoke("XWB EGCHO SORT LIST", ["HI", {'1': '', '10': '', '190': 'x', '89': ''}])
+    >>> print c.invoke("XWB EGCHO SORT LIST", "HI", {'1': '', '10': '', '190': '', '89': ''})
     ['190', '89', '10', '1']
 
     # You can encode the parameter yourself if you know what you are doing
-    >>> print c.invoke("XWB EGCHO STRING", [PEncoded("0014I ENCODED THISf")])
+    >>> print c.invoke("XWB EGCHO STRING", PEncoded("0014I ENCODED THISf"))
     I ENCODED THIS
 
-    # By default, the chunks of a message are merged before returning them.
-    # You can inhibit this behaviour using the mergeresults flag
-    >>> print c.invokeRPC("XWB EXAMPLE WPTEXT", mergeresults=False)
-    ['This file is used as a repository ...
-
     # Reference parameters are passed using the PReference type.
-    >>> print c.invokeRPC("XWB GET VARIABLE VALUE", [PReference("DUZ")])
+    >>> print c.invoke("XWB GET VARIABLE VALUE", PReference("DUZ"))
     10000000020
-    >>> print c.invokeRPC("XWB GET VARIABLE VALUE", [PReference("DUZ(0)")])
+    >>> print c.invoke("XWB GET VARIABLE VALUE", PReference("DUZ(0)"))
     @
 
 Simple script::
 
     import getopt, sys
 
-    from vavista.rpc import connect
+    from vavista.rpc import connect, PLiteral, PList, PReference
+
 
     context = "RPC DEMO"   # see not above about creating this option.
 
@@ -184,17 +183,20 @@ Simple script::
     c = connect(host, port, access, verify, context)
 
     # Prints out "THIS IS A STRING"
-    print c.invoke("XWB EGCHO STRING", ["THIS IS A STRING"])
+    print c.invoke("XWB EGCHO STRING", "THIS IS A STRING")
 
     # This "list" RPC returns a list of items delimited by the DOS line ending
-    print c.invoke("XWB EGCHO LIST")
+    print c.invoke("XWB EGCHO LIST")[:100]
+    print c.l_invoke("XWB EGCHO LIST")[:10]
 
     # This "list" RPC returns a list of items delimited by the DOS line ending
-    l = c.invoke("XWB EGCHO BIG LIST")
+    l = c.l_invoke("XWB EGCHO BIG LIST")
     print l[:5], " ... ", l[-5:]
 
     # This is how 'arrays' are passed
-    print c.invoke("XWB EGCHO SORT LIST", ["HI", {'1': '', '10': '', '190': 'x', '89': ''}])
+    print c.l_invoke("XWB EGCHO SORT LIST", "HI", {'1': '', '10': '', '190': 'x', '89': ''})
+
+    print c.l_invoke("XWB EGCHO SORT LIST", "LO", PList([('1', ''), ('10', ''), ('190', 'x'), ('89', '')]))
 
 References
 ----------
