@@ -10,6 +10,31 @@ for file 999900
     zwrite ^DIC(999900,*)
     zwrite ^DD(999900,*)
 
+Type Spec : all fields are optional.
+
+    [*]         - the field is screened
+    [I]         - something to do with labs - dont know what (TODO)
+    [M]         - I see this on multiple entry subfiles - (TODO)
+    [R]         - Mandatory
+    [P|D|N|F|S|C|V|K]
+                - Field Type:
+                    P = pointer to a file
+                    D = Datetime
+                    N = Numeric
+                    F = Text
+                    S = Set
+                    C = Computed
+                    V = VPointer (more data held in fields)
+                    K = Mumps Code
+                    missing = either WP field or subfile
+    [nnn]       - Id of file pointed to or subfile id
+    [P]         - if reference is multiple, a subfile is created to 
+                  manage the references. Subfile spec describes relationship with real file.
+    [Jn,m]      - number spec, n = field length, m = digits after decimal point
+    [']         - Laygo set to NO
+    [X]         - The type spec is not editable
+    [O]         - (TODO)
+    [a]         - audit
 """
 
 from vavista import M
@@ -38,6 +63,7 @@ class Field(object):
     storage = None
 
     mandatory = False
+    screened = False
     details = None
     m_valid = None
     title = None
@@ -51,8 +77,17 @@ class Field(object):
             self.storage = fieldinfo[3]
         except:
             pass
+
+        # Use the values in typespec to extract parameterise
         typespec = fieldinfo[1]
-        self.mandatory = 'R' in typespec
+        if typespec and typespec[0] == '*':
+            self.screened = True
+            typespec = typespec[1:]
+
+        if typespec and typespec[0] == 'R':
+            self.mandatory = True
+            typespec = typespec[1:]
+
         self.details = fieldinfo[2]
         if len(fieldinfo) > 4 and fieldinfo[4]:
             self.m_valid = fieldinfo[4]
@@ -66,6 +101,7 @@ class Field(object):
     def __str__(self, msgs=[]):
         msgs = [] + msgs
         if self.mandatory: msgs.append("(mandatory)")
+        if self.screened: msgs.append("(screened)")
         if self.storage: msgs.append("location=%s" % self.storage)
         if self.details: msgs.append("details=%s" % self.details)
         if self.m_valid: msgs.append("valid=%s" % self.m_valid)
@@ -78,15 +114,21 @@ class Field(object):
     def isa(cls, flags):
         """
             Determine whether the flags spec provided represents that type of Field
+
+            There are a variable number of flags before the type.
+            [*] - field is screened
+            [I] - don't know yet - something to do with labs
+            [R] - mandatory
         """
+
         # Strip leading, non-type specific flags
+        screened = '*IR'
         for i in range(len(flags)):
-            if flags and flags[0] == 'R':
-                flags = flags[1:] # strip of mandatory flag
-            #elif flags and flags[0] == '*':
-            #    flags = flags[1:] # What is this one?
+            if flags and flags[0] in screened:
+                flags = flags[1:]
             else:
                 break
+        
         return cls.c_isa(flags)
 
 class FieldDatetime(Field):
@@ -111,7 +153,6 @@ class FieldNumeric(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'N'
  
 class FieldText(Field):
@@ -119,7 +160,6 @@ class FieldText(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'F'
 
 class FieldSet(Field):
@@ -129,7 +169,6 @@ class FieldSet(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'S'
 
 class FieldWP(Field):
@@ -137,7 +176,6 @@ class FieldWP(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         n=""
         for c in flags:
             if c not in "0123456789.": break
@@ -152,7 +190,6 @@ class FieldComputed(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'C'
 
 class FieldPointer(Field):
@@ -160,7 +197,6 @@ class FieldPointer(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'P'
 
 class FieldVPointer(Field):
@@ -168,7 +204,6 @@ class FieldVPointer(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'V'
 
 class FieldMUMPS(Field):
@@ -176,7 +211,6 @@ class FieldMUMPS(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         return flags and flags[0] == 'K'
 
 class FieldSubfile(Field):
@@ -184,7 +218,6 @@ class FieldSubfile(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        if flags and flags[0] == 'R': flags = flags[1:] # strip of mandatory flag
         n=""
         for c in flags:
             if c not in "0123456789.": break
