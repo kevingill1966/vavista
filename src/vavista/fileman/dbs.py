@@ -381,6 +381,8 @@ class DBSRow(object):
         I need to add update logic to the rows so I can write to them
         What about the other values, e.g. subfiles, wp files - do they come across.
     """
+    _changed = False
+
     def __init__(self, dbsfile, dd, rowid, fieldids):
         self._dbsfile = dbsfile
         self._dd = dd
@@ -449,8 +451,14 @@ class DBSRow(object):
         g[self._row_tmpid].kill()
 
     def _retrieve(self):
+        """
+            Retrieve values
+            Internal or External
+        """
+        g = M.Globals()
+        g["ERR"].kill()
+
         self._row_tmpid = "row%s" % id(self)
-        M.mexec("kill ERR")
         M.proc("GETS^DIQ",
             self._dd.fileid,      # numeric file id
             self._iens,           # IENS
@@ -460,14 +468,36 @@ class DBSRow(object):
             "ERR")
 
         # Check for error
-        g = M.Globals()
         err = g["ERR"]
         if err.exists():
-            raise FilemanError("""DBSFIle.get() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], fieldids = [%s]"""
+            raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], fieldids = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid, "*"), str(err))
 
         # Extract the result and store in python variable
         self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
+        self._changed = False
+
+    def _update(self):
+        """
+            Write changed data back to the database.
+            
+            This is intended to be used during a transaction commit.
+        """
+        g = M.Globals()
+        g["ERR"].kill()
+
+        # Flags:
+        # E - use external formats
+        # K - lock the record
+        # S - do not clear the row global
+        # T - verify the data
+        M.proc("FILE^DIE", "EKST" , self._row_tmpid, "ERR")
+
+        # Check for error
+        err = g["ERR"]
+        if err.exists():
+            raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
 
 class DBSFile(object):
     """

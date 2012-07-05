@@ -42,3 +42,17 @@ Example::
     patient1 = patients.get('1')
     print patient1
 
+I am working on the update logic. The concept is that you modify an object
+and it will write out the data during a transaction commit.
+
+::
+
+    from vavista.fileman import connect, transaction
+    transaction.begin()
+    dbs = connect("0", "")
+    patients = dbs.get_file('PATIENT')
+    patient1 = patients.get('1')
+    patient1.TYPE = 'NEW VALUE'
+    transaction.commit()    # writes out here.
+
+However, not making good progress at the moment.

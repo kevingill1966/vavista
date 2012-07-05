@@ -103,7 +103,11 @@ class Global(object):
         return Global(self.path + [str(key)])
 
     def printable(self):
-        rv = [self.value]
+        rv = []
+        try:
+            rv.append(self.value)  # may not have value
+        except:
+            pass
         for k, v in self.items():
             rv.append('%s.%s = "%s"' % (".".join(self.path), k, v))
         for k in self.keys_with_decendants():
@@ -114,6 +118,9 @@ class Global(object):
     
     def __str__(self):
         return '\n'.join([str(s) for s in self.printable()])
+    def __repr__(self):
+        return "<%s.%s: %s%s=%s >" % (self.__class__.__module__, self.__class__.__name__, 
+            self.path[0], self.path[1:], str(self))
 
     def get_value(self):
         if len(self.path) == 1:
