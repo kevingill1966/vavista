@@ -1,2 +1,3 @@
 
-from dbs import DBS
+from dbs import DBS as connect
+

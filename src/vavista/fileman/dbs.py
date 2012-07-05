@@ -256,8 +256,9 @@ class _DD(object):
         self.filename = filename
 
     def _clean_label(self, s):
-        s = s.lower()
-        s = ''.join([c for c in s if c in "_abcdefghijklmnopqrstuvwxyz0123456789 "])
+        "The field names should match those used by fm projection - i.e. uppercase"
+        s = s.upper()
+        s = ''.join([c for c in s if c in "_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "])
         s = s.replace(' ', '_')
         return s
 
@@ -391,14 +392,14 @@ class DBSRow(object):
             self._fields = dd.fields
 
         # Lazy evaluation
-        self.__data = None
+        self._stored_data = None
 
     @property
     def _data(self):
         # for lazy evaluation
-        if self.__data is None:
+        if self._stored_data is None:
             self.retrieve()
-        return self.__data
+        return self._stored_data
 
     @property
     def _iens(self):
@@ -410,7 +411,7 @@ class DBSRow(object):
         keys = self.keys()
         keys.sort()
         for k in keys:
-            v = self.__data.get(k)
+            v = self._data.get(k)
             if v:
                 f = fields.get(k)
                 if f:
@@ -420,7 +421,6 @@ class DBSRow(object):
                 rv.append('%s (%s) = "%s"' % (fn, k, v))
         return '\n'.join(rv)
 
-    # TODO: these methods may conflict with property names.
     def keys(self):
         return self._data.keys()
     def items(self):
@@ -442,14 +442,21 @@ class DBSRow(object):
             return self[fieldid]
         raise AttributeError(key)
 
+    def __del__(self):
+        # Each time we retrieve a row, it is copied to a temporary store. 
+        # This needs to be killed or we have a memory leak in GT.M
+        g = M.Globals()
+        g[self._row_tmpid].kill()
+
     def _retrieve(self):
-        M.mexec("kill ROW,ERR")
+        self._row_tmpid = "row%s" % id(self)
+        M.mexec("kill ERR")
         M.proc("GETS^DIQ",
             self._dd.fileid,      # numeric file id
             self._iens,           # IENS
             "*",                 # Fields to return TODO
             "N",                # Flags N=no nulls, R=return field names
-            "ROW",
+            self._row_tmpid,
             "ERR")
 
         # Check for error
@@ -460,7 +467,7 @@ class DBSRow(object):
                 % (self._dd.filename, self._dd.fileid, self._rowid, "*"), str(err))
 
         # Extract the result and store in python variable
-        self.__data = dict(g["ROW"][self._dd.fileid][self._iens])
+        self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
 
 class DBSFile(object):
     """

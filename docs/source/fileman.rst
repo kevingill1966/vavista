@@ -12,12 +12,12 @@ on DBS, which does not involve user input.
 
 To import::
 
-    from vavista.fileman.dbs import DBS
+    from vavista import fileman
 
-Create a DBS object. This takes two parameters, the user id (DUZ) variable and
+Create a connection object. This takes two parameters, the user id (DUZ) variable and
 DT (the date/time format string). These are passed to the Mumps interpreter.::
 
-    dbs = DBS("0", "")
+    dbs = fileman.connect("0", "")
 
 Files
 -----
@@ -36,8 +36,8 @@ in rows.::
 
 Example::
 
-    from vavista.fileman.dbs import DBS
-    dbs = DBS("0", "")
+    from vavista.fileman import connect
+    dbs = connect("0", "")
     patients = dbs.get_file('PATIENT')
     patient1 = patients.get('1')
     print patient1
