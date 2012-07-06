@@ -48,13 +48,21 @@ and it will write out the data during a transaction commit.
 
 ::
 
-from vavista.fileman import connect, transaction
-transaction.begin()
-dbs = connect("0", "")
-patients = dbs.get_file('PATIENT')
-patient2 = patients.get('2')
-patient2.NAME = 'FIRST,LAST'
-transaction.abort()    # writes out here.
-transaction.commit()    # writes out here.
+    from vavista.fileman import connect, transaction
+    transaction.begin()
+    dbs = connect("0", "")
+    patients = dbs.get_file('PATIENT')
+    patient2 = patients.get('2')
+    patient2.NAME = 'FIRST,LAST'
+    transaction.commit()    # writes out here.
 
-However, not making good progress at the moment.
+New record
+
+    from vavista.fileman import connect, transaction
+    transaction.begin()
+    dbs = connect("0", "")
+    patients = dbs.get_file('PATIENT')
+    patientn = patients.new()
+    patientn.NAME = 'NEW,PATIENT'
+    transaction.commit()    # writes out here.
+

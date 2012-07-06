@@ -32,7 +32,7 @@ class DBSFile(object):
         record._retrieve() # raises exception on failure
         return record
 
-    def new(self, rowid, fieldids=None):
+    def new(self, fieldids=None):
         """
             The logic to create a new row.
         """

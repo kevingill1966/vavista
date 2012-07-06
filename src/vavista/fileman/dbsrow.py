@@ -39,8 +39,10 @@ class DBSRow(object):
     _dd = None
     _rowid = None
     _fields = None
+    _fieldids = None
     _stored_data = None
     _row_tmpid = None
+    _row_fdaid = None
 
     def __init__(self, dbsfile, dd, rowid, fieldids):
         self._dbsfile = dbsfile
@@ -48,12 +50,18 @@ class DBSRow(object):
         self._rowid = rowid
 
         if fieldids:
-            self._fields = dict([(k,v) for (k,v) in dd.fields if v.fieldid in fieldids])
+            self._fields = dict([(k,v) for (k,v) in dd.fields.items() if v.fieldid in fieldids])
+            self._fieldids = fieldids
         else:
             self._fields = dd.fields
+            self._fieldids = [v.fieldid for (k,v) in dd.fields.items()]
 
         # Lazy evaluation
+        self._row_tmpid = "row%s" % id(self)
         self._stored_data = None
+        if rowid is None:
+            g = M.Globals()
+            self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
 
     def _before_value_change(self, fieldid, global_var, value):
         """
@@ -95,7 +103,7 @@ class DBSRow(object):
             transaction.join(self)
 
         if fieldid not in self._changed_fields:
-            self.changed_fields.append(fieldid)
+            self._changed_fields.append(fieldid)
 
         return value
 
@@ -131,12 +139,12 @@ class DBSRow(object):
     def _on_after_commit(self):
         self._unlock()
         self._changed = False
-        self.changed_fields = []
+        self._changed_fields = []
             
     def _on_after_abort(self):
         self._unlock()
         self._changed = False
-        self.changed_fields = []
+        self._changed_fields = []
 
         #   Any data in the object is dirty 
         #   this should force it to reload if it is accessed again
@@ -152,7 +160,10 @@ class DBSRow(object):
 
     @property
     def _iens(self):
-        return str(self._rowid) + ","
+        if self._rowid is None:
+            return "+1," # protocol used for inserting records, fileman pm 3-125
+        else:
+            return str(self._rowid) + ","
 
     def __str__(self):
         fields = self._dd.fields
@@ -176,10 +187,29 @@ class DBSRow(object):
     def items(self):
         return self._data.items()
 
-    def __getitem__(self, fieldid, default=None):
+    def __getitem__(self, fieldid, default=''):
+        """
+            Return a field using array notation
+
+            print record[.01]
+
+            Item does not exist, but is a valid fieldid, insert it.
+            This occurs on an insert. The inserted field does not
+            affect the transaction tracking.
+        """
+
+        fieldid = str(fieldid)
         try:
-            return self._data[str(fieldid)]
+            return self._data[fieldid]
         except:
+            if fieldid in self._fieldids:
+                g = M.Globals()
+                v = g[self._row_tmpid][self._dd.fileid][self._iens][fieldid]
+                v.value = default
+                self._stored_data[fieldid] = v
+                v._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
+                return self[fieldid]
+
             raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
                 (self._dd.fileid, self._dd.filename), fieldid)
 
@@ -215,6 +245,8 @@ class DBSRow(object):
         # This needs to be killed or we have a memory leak in GT.M
         g = M.Globals()
         g[self._row_tmpid].kill()
+        if self._row_fdaid:
+            g[self._row_fdaid].kill()
 
     def _retrieve(self):
         """
@@ -224,7 +256,6 @@ class DBSRow(object):
         g = M.Globals()
         g["ERR"].kill()
 
-        self._row_tmpid = "row%s" % id(self)
         M.proc("GETS^DIQ",
             self._dd.fileid,      # numeric file id
             self._iens,           # IENS
@@ -242,30 +273,83 @@ class DBSRow(object):
         # Extract the result and store in python variable
         self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
         self._changed = False
+        self._changed_fields = []
 
         # Add in trigger
         for key, value in self._stored_data.items():
             value._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
+
+    def _create_fda(self):
+        """
+            For the current record, copy all changed fields to an FDA record
+            (Fileman Data Array), see programmer manual 3.2.3
+
+            FDA_ROOT(FILE#,"IENS",FIELD#)="VALUE"
+
+        """
+        g = M.Globals()
+        self._row_fdaid = row_fdaid = "fda%s" % id(self)
+        fda = g[row_fdaid]
+        fda.kill()
+        fileid = self._dd.fileid
+        iens = self._iens
+        for fieldid in self._changed_fields:
+            fda[fileid][iens][fieldid].value = self[fieldid].value
+        return row_fdaid
+
+    def _insert(self):
+        """
+            Create a new record
+
+            This is intended to be used during a transaction commit.
+
+            UPDATE^DIE(FLAGS,FDA_ROOT,IEN_ROOT,MSG_ROOT)
+        """
+        g = M.Globals()
+        g["ERR"].kill()
+
+        # Create an FDA format array for fileman
+        fdaid = self._create_fda()
+
+        # Flags:
+        # E - use external formats
+        # S - do not clear the row global
+        M.proc("UPDATE^DIE", "ES" , fdaid, "", "ERR")
+
+        # Check for error
+        err = g["ERR"]
+        if err.exists():
+
+            # TODO: Work out the error codes.
+
+            # ERR.DIERR.6.PARAM.0 = "3"
+            # ERR.DIERR.6.PARAM.FIELD = "1901"
+            # ERR.DIERR.6.PARAM.FILE = "2"
+            # ERR.DIERR.6.PARAM.IENS = "+1,"
+            # ERR.DIERR.6.TEXT.1 = "The new record '+1,' lacks some required identifiers."
+
+            raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+
 
     def _update(self):
         """
             Write changed data back to the database.
             
             This is intended to be used during a transaction commit.
-
-            TODO: this approach doesn't work. I have to copy the values
-            which have changed to a new area and update them only. This
-            attempts to update computed fields.
         """
         g = M.Globals()
         g["ERR"].kill()
+
+        # Create an FDA format array for fileman
+        fdaid = self._create_fda()
 
         # Flags:
         # E - use external formats
         # K - lock the record
         # S - do not clear the row global
         # T - verify the data
-        M.proc("FILE^DIE", "EST" , self._row_tmpid, "ERR")
+        M.proc("FILE^DIE", "EST" , fdaid, "ERR")
 
         # Check for error
         err = g["ERR"]
