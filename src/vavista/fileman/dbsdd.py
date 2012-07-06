@@ -358,14 +358,26 @@ class _DD(object):
 
         return '\n'.join(rv)
 
+    def __repr__(self):
+        return "<%s.%s (%s=%s)>" % (self.__class__.__module__, self.__class__.__name__, self.fileid, self.filename)
+
     def m_closed_form(self, rowid):
         """
             Return the closed form for a record from this file.
         """
         if self._gl is None:
             g = M.Globals()
-            self._gl = g["^DIC"][self.fileid][0]["GL"]
+            self._gl = str(g["^DIC"][self.fileid][0]["GL"])
         return "%s%s)" % (self._gl, rowid)
+
+    def m_open_form(self):
+        """
+            Return the closed form for a record from this file.
+        """
+        if self._gl is None:
+            g = M.Globals()
+            self._gl = str(g["^DIC"][self.fileid][0]["GL"])
+        return self._gl
 
 
 def DD(filename, cache={}):

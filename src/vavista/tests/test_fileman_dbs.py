@@ -57,6 +57,27 @@ class TestFileman(unittest.TestCase):
         copy = kevin1.get(rowid)
         self.assertEqual(str(copy.NAME), 'hello there from unit test2')
 
+    def test_insert_external(self):
+        # Create a new record - write it to the database
+        kevin1 = self.dbs.get_file("KEVIN1", internal=False)
+        record = kevin1.new()
+        record.NAME = 'hello there from unit test'
+        transaction.commit()
+
+        # There is no rowid until after the commit
+        # read the record back and make sure it is the same
+        rowid = record._rowid
+        copy = kevin1.get(rowid)
+        self.assertEqual(str(copy.NAME), 'hello there from unit test')
+
+        # update the record and verify that the updates worked.
+        record.NAME = 'hello there from unit test2'
+        transaction.commit()
+        copy = kevin1.get(rowid)
+        self.assertEqual(str(copy.NAME), 'hello there from unit test2')
+
+        # delete
+        copy.delete()
 
 test_cases = (TestFileman,)
 

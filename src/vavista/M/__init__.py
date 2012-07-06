@@ -107,13 +107,17 @@ class Global(object):
     # _on_before_change raises an exception if validation fails.
     # _on_before_change must return the data to be inserted
     _on_before_change = None
+    _children = None
 
     def __init__(self, path):
         self.path = path
+        self._children = {}
 
     def __getitem__(self, key):
-        return Global(self.path + [str(key)])
-
+        if key not in self._children:
+            self._children[key] = Global(self.path + [str(key)])
+        return self._children[key]
+    
     def printable(self):
         rv = []
         try:
@@ -217,6 +221,27 @@ class Global(object):
             else:
                 break
         return rv
+
+    def values(self):
+        """
+            This returns the values which have a value (not those with decendants but without values).
+        """
+        if len(self.path) > 1:
+            path = '%s("%s",s0)' % (self.path[0], '","'.join(self.path[1:]))
+        else:
+            path = '%s(s0)' % (self.path[0])
+
+        s0 = ""
+        rv = []
+        while 1:
+            s0, l0, s1 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s),s1=$GET(%s) ' % (path, path, path), INOUT(s0), INOUT(0), INOUT(""))
+            if s0:
+                if l0 & 1:
+                    rv.append(s1)
+            else:
+                break
+        return rv
+
 
     def keys_with_decendants(self):
         """

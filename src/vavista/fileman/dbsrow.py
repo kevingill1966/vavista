@@ -52,11 +52,13 @@ class DBSRow(object):
     _stored_data = None
     _row_tmpid = None
     _row_fdaid = None
+    _internal=True
 
-    def __init__(self, dbsfile, dd, rowid, fieldids):
+    def __init__(self, dbsfile, dd, rowid, fieldids=None, internal=True):
         self._dbsfile = dbsfile
         self._dd = dd
         self._rowid = rowid
+        self._internal = internal
 
         if fieldids:
             self._fields = dict([(k,v) for (k,v) in dd.fields.items() if v.fieldid in fieldids])
@@ -82,30 +84,31 @@ class DBSRow(object):
         # At this stage, I just want to validate against the data 
         # dictionary. At write time, the data will be fully validated.
 
-        g = M.Globals()
-        g["ERR"].kill()
+        if not self._internal:
+            g = M.Globals()
+            g["ERR"].kill()
 
-        # Validates single field against the data dictionary
-        s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
-            value, M.INOUT(""), "ERR")
+            # Validates single field against the data dictionary
+            s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
+                value, M.INOUT(""), "ERR")
 
-        err = g["ERR"]
+            err = g["ERR"]
 
-        # s0 should contain ^ for error, internal value for valid data
-        if s0 == "^":
-            error_code = err['DIERR'][1].value
-            error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
-            help_msg = [v for k,v in err['DIHELP'].items()]
+            # s0 should contain ^ for error, internal value for valid data
+            if s0 == "^":
+                error_code = err['DIERR'][1].value
+                error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
+                help_msg = [v for k,v in err['DIHELP'].items()]
 
-            # Invalid data - get the error from the ERR structure
-            raise FilemanValidationError(filename = self._dd.filename, row = self._rowid, 
-                    fieldid = fieldid, value = value, error_code = error_code, error_msg = error_msg,
-                    err = err, help=help_msg)
+                # Invalid data - get the error from the ERR structure
+                raise FilemanValidationError(filename = self._dd.filename, row = self._rowid, 
+                        fieldid = fieldid, value = value, error_code = error_code, error_msg = error_msg,
+                        err = err, help=help_msg)
 
-        # If err exists, then some form of programming error
-        if err.exists():
-            raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
-                % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
+            # If err exists, then some form of programming error
+            if err.exists():
+                raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
 
         if not self._changed:
             self._lock()
@@ -199,7 +202,10 @@ class DBSRow(object):
                     fn = f.label
                 else:
                     fn = "not in dd"
-                rv.append('%s (%s) = "%s"' % (fn, k, v))
+                if self._internal:
+                    rv.append('%s (%s) = "%s"' % (fn, k, v['I']))
+                else:
+                    rv.append('%s (%s) = "%s"' % (fn, k, v))
         return '\n'.join(rv)
 
     def keys(self):
@@ -218,17 +224,22 @@ class DBSRow(object):
             This occurs on an insert. The inserted field does not
             affect the transaction tracking.
         """
-
         fieldid = str(fieldid)
         try:
-            return self._data[fieldid]
+            if self._internal:
+                return self._data[fieldid]['I']
+            else:
+                return self._data[fieldid]
         except:
             if fieldid in self._fieldids:
                 g = M.Globals()
                 v = g[self._row_tmpid][self._dd.fileid][self._iens][fieldid]
                 v.value = default
                 self._stored_data[fieldid] = v
-                v._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
+                if self._internal:
+                    v['I']._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
+                else:
+                    v._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
                 return self[fieldid]
 
             raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
@@ -277,11 +288,17 @@ class DBSRow(object):
         g = M.Globals()
         g["ERR"].kill()
 
+        flags = 'N'    # no nulls
+        if self._internal:
+            flags = flags + "I"
+
+        fieldids = "*"  # TODO: fieldids
+
         M.proc("GETS^DIQ",
-            self._dd.fileid,      # numeric file id
-            self._iens,           # IENS
-            "*",                 # Fields to return TODO
-            "N",                # Flags N=no nulls, R=return field names
+            self._dd.fileid,     # numeric file id
+            self._iens,          # IENS
+            fieldids,            # Fields to return TODO
+            flags,               # Flags N=no nulls, R=return field names
             self._row_tmpid,
             "ERR")
 
@@ -298,7 +315,10 @@ class DBSRow(object):
 
         # Add in trigger
         for key, value in self._stored_data.items():
-            value._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
+            if self._internal:
+                value['I']._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
+            else:
+                value._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
 
     def _create_fda(self):
         """
@@ -315,6 +335,7 @@ class DBSRow(object):
         fileid = self._dd.fileid
         iens = self._iens
         for fieldid in self._changed_fields:
+            # if internal self[fieldid] handles it
             fda[fileid][iens][fieldid].value = self[fieldid].value
         return row_fdaid
 
@@ -336,7 +357,12 @@ class DBSRow(object):
         # Flags:
         # E - use external formats
         # S - do not clear the row global
-        M.proc("UPDATE^DIE", "ES" , fdaid, ienid, "ERR")
+        if self._internal:
+            flags = ""
+        else:
+            flags = "E"
+        flags = flags + "S"
+        M.proc("UPDATE^DIE", flags , fdaid, ienid, "ERR")
 
         # Check for error
         err = g["ERR"]
@@ -381,4 +407,34 @@ class DBSRow(object):
         if err.exists():
             raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+
+    def __repr__(self):
+        return "<%s.%s %s, rowid=%s>" % (self.__class__.__module__, self.__class__.__name__, self._dd.filename, self._rowid)
+
+
+    def delete(self):
+        """
+            I see no clear mechanism for doing deletes in the DBS API.
+
+            There seems to be a call in the "classic" API:
+
+            ^DIK
+                    DIK = "The file global - open format"
+                    DA = "The entry number in the file"
+
+            TODO: Queue for Txn Commit
+            TODO: Validate permissions
+        """
+        if self._rowid is not None:
+            g = M.Globals()
+            g["Y"].kill()
+            g["DIK"].value = self._dd.m_open_form()
+            g["DA"].value = str(self._rowid)
+            M.proc("^DIC")
+            if g["Y"]:
+                # I don't know where to look for the error message - Classic API
+                # Sets the flag, but no variables set
+                raise FilemanError("""DBSRow.delete() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid))
+
 

@@ -27,7 +27,7 @@ of persistent globals which are accessed via Fileman APIs. There is a class
 called DBSFile wrapping file level logic. Request the file object from the
 DBS instance.::
 
-    patients = dbs.get_file('PATIENT')
+    patients = dbs.get_file('PATIENT', internal=True, fieldids=None)
 
 Once you have the file, you can retrieve data from it. The data is retrieved
 in rows.::
@@ -48,7 +48,6 @@ Modifying data
 
 You can modify files. Files can only be modified in a transaction. The
 updates are written to fileman when the transaction commit occurs.
-
 
 ::
 
@@ -86,6 +85,31 @@ GT.M has a lock manager called lke.
     DEFAULT
     ^DIZ(999900,18) Owned by PID= 1475 which is an existing process
 
+
+Internal Versus External
+------------------------
+
+Fileman supports a notion of internal and external representation of data.
+External representation is a UI concept, converting 0/1 to Yes/No or looking
+up foreign keys on tables.
+
+I feel that developers will work with "internal" format data. UI considerations
+are the realm of the toolkits, not the database layer.
+
+To get internal format, use...::
+
+    patients = dbs.get_file('PATIENT')
+
+To get external format, use...::
+    
+    patients = dbs.get_file('PATIENT', internal=False)
+
+A huge consideration here is dates. It would be silly to allow Fileman to
+format dates for presentation. However, the internal format is not great.
+I need to covert dates to datetime formats.
+
+The knock-on is that I should consider converting other types, when using
+"internal" representation.
 
 WIP
 ---
