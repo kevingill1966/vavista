@@ -1,5 +1,8 @@
 
 import os
+import logging
+
+logger = logging.getLogger("vavista.M")
 
 # If the GTMCI environment variable is not configured, then set it to
 # point to the callin file. Otherwise assume that the user knows what
@@ -37,10 +40,11 @@ def proc(procedure, *inparams):
             inout = "."
         else:
             v = p
-        if type(v) == str:
-            # TODO: unicode
+        if type(v) in [str, unicode]:
             var = "s%d" % iStr
             iStr += 1
+            if type(p) == unicode:
+                p = p.encode('utf-8')
         elif type(v) in [int, long]:
             var = "l%d" % iInt
             iInt += 1
@@ -97,8 +101,16 @@ def func(procedure, *inparams):
     return mexec(cmd, *params)
     
 class Global(object):
+
+    # If _on_before_change is not None, it will be called when an attempt is made to
+    # set the value. This is primarily intended for use with fileman.
+    # _on_before_change raises an exception if validation fails.
+    # _on_before_change must return the data to be inserted
+    _on_before_change = None
+
     def __init__(self, path):
         self.path = path
+
     def __getitem__(self, key):
         return Global(self.path + [str(key)])
 
@@ -117,24 +129,47 @@ class Global(object):
         return rv
     
     def __str__(self):
-        return '\n'.join([str(s) for s in self.printable()])
+        return '\n'.join([unicode(s) for s in self.printable()])
+
     def __repr__(self):
+        # I am encoding this in UTF-8 because pdb uses this to display variables
+        # which causes unicode errors with non-ASCII values.
         return "<%s.%s: %s%s=%s >" % (self.__class__.__module__, self.__class__.__name__, 
-            self.path[0], self.path[1:], str(self))
+            self.path[0], self.path[1:], unicode(self).encode('utf-8'))
 
     def get_value(self):
         if len(self.path) == 1:
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        s0, = mexec("set s0=@s0", INOUT(s0))
-        return s0
+        s1, = mexec("set s1=@s0", s0, INOUT(""))
+        if s1:
+            try:
+                s1 = s1.decode('utf-8')
+            except:
+                logger.exception("Global.get_value (%s) Unicode decode error on [%s]", s0, s1)
+                raise
+
+        return s1
+
     def set_value(self, s1):
+        if self._on_before_change:
+            s1 = self._on_before_change(self, s1)
+
         if len(self.path) == 1:
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
+
+        if type(s1) == unicode:
+            try:
+                s1 = s1.encode('utf-8')
+            except:
+                logger.exception("Global.set_value (%s) Unicode decode error on [%s]", s0, s1)
+                raise
+
         mexec("set @s0=s1", s0, s1)
+
     value = property(get_value, set_value)
 
     def kill(self):
@@ -201,6 +236,7 @@ class Global(object):
             else:
                 break
         return rv
+
     def exists(self):
         if len(self.path) == 1:
             s0 = self.path[0]
@@ -208,6 +244,7 @@ class Global(object):
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
         l0, = mexec("set l0=$data(@s0)", s0, INOUT(0))
         return l0 > 0
+
     def has_value(self):
         if len(self.path) == 1:
             s0 = self.path[0]
@@ -215,6 +252,7 @@ class Global(object):
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
         l0, = mexec("set l0=$data(@s0)", s0, INOUT(0))
         return l0 & 1
+
     def has_decendants(self):
         if len(self.path) == 1:
             s0 = self.path[0]

@@ -243,6 +243,17 @@ class Index(object):
 class FilemanError(Exception):
     pass
 
+class FilemanValidationError(FilemanError):
+    filename, row, fieldid, value, error_code, error_msg = None, None, None, None, None, None
+    err, help = None, None
+    def __init__(self, **kwargs):
+        for k,v in kwargs.items():
+            setattr(self, k, v)
+    def __str__(self):
+        return """file [%s], row = [%s], fieldid = [%s], value = [%s], error_code = [%s], error_msg = [%s] help = %s""" \
+            % (self.filename, self.row, self.fieldid, self.value, self.error_code, self.error_msg,
+            self.help)
+
 class _DD(object):
     """
         Load the data dictionary for a FILE
@@ -382,6 +393,12 @@ class DBSRow(object):
         What about the other values, e.g. subfiles, wp files - do they come across.
     """
     _changed = False
+    _dbsfile = None
+    _dd = None
+    _rowid = None
+    _fields = None
+    _stored_data = None
+    _row_tmpid = None
 
     def __init__(self, dbsfile, dd, rowid, fieldids):
         self._dbsfile = dbsfile
@@ -395,6 +412,43 @@ class DBSRow(object):
 
         # Lazy evaluation
         self._stored_data = None
+
+    def _before_value_change(self, fieldid, global_var, value):
+        """
+            This should be invoked before the application modifies a variable
+            in this row. This function should validate the value, apply any
+            formatting rules required and notify the transactional machinary 
+            that this object is changed.
+        """
+        # At this stage, I just want to validate against the data 
+        # dictionary. At write time, the data will be fully validated.
+
+        g = M.Globals()
+        g["ERR"].kill()
+
+        # Validates single field against the data dictionary
+        s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
+            value, M.INOUT(""), "ERR")
+
+        err = g["ERR"]
+
+        # s0 should contain ^ for error, internal value for valid data
+        if s0 == "^":
+            error_code = err['DIERR'][1].value
+            error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
+            help_msg = [v for k,v in err['DIHELP'].items()]
+
+            # Invalid data - get the error from the ERR structure
+            raise FilemanValidationError(filename = self._dd.filename, row = self._rowid, 
+                    fieldid = fieldid, value = value, error_code = error_code, error_msg = error_msg,
+                    err = err, help=help_msg)
+
+        # If err exists, then some form of programming error
+        if err.exists():
+            raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
+                % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
+
+        return value
 
     @property
     def _data(self):
@@ -425,6 +479,7 @@ class DBSRow(object):
 
     def keys(self):
         return self._data.keys()
+
     def items(self):
         return self._data.items()
 
@@ -439,9 +494,29 @@ class DBSRow(object):
         """
             Called for misses
         """
+        if key[0] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
+            return super(DBSRow, self).__getattr__(key)
         fieldid = self._dd.attrs.get(key, None)
         if fieldid is not None:
             return self[fieldid]
+        raise AttributeError(key)
+
+    def __setattr__(self, key, value):
+        """
+            called by:
+
+                record.FIELD = 4
+
+            If FIELD exists, set its value
+            If FIELD does not exist, and is in the data dictionary, create it.
+            If FIELD does not exist, and is not the data dictionary, raise exception.
+        """
+        if key[0] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
+            return super(DBSRow, self).__setattr__(key, value)
+        fieldid = self._dd.attrs.get(key, None)
+        if fieldid is not None:
+            self[fieldid].value = value
+            return
         raise AttributeError(key)
 
     def __del__(self):
@@ -476,6 +551,10 @@ class DBSRow(object):
         # Extract the result and store in python variable
         self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
         self._changed = False
+
+        # Add in trigger
+        for key, value in self._stored_data.items():
+            value._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
 
     def _update(self):
         """
