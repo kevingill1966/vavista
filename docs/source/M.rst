@@ -60,7 +60,7 @@ a single line.
 
 Example::
 
-        mexec('write "Hello World!"!')
+        mexec('write "Hello World!",!')
 
 Both proc and func use the mexec call to execute code.
 

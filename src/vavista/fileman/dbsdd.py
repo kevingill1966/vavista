@@ -249,6 +249,7 @@ class _DD(object):
         Load the data dictionary for a FILE
     """
     _fileid = None
+    _gl = None
     _indices = _fields = None
     filename = None
     attrs = None
@@ -356,6 +357,15 @@ class _DD(object):
             rv.append('\t' + str(index))
 
         return '\n'.join(rv)
+
+    def m_closed_form(self, rowid):
+        """
+            Return the closed form for a record from this file.
+        """
+        if self._gl is None:
+            g = M.Globals()
+            self._gl = g["^DIC"][self.fileid][0]["GL"]
+        return "%s%s)" % (self._gl, rowid)
 
 
 def DD(filename, cache={}):

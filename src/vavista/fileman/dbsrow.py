@@ -6,6 +6,7 @@
 
 from vavista import M
 from shared import FilemanError
+from transaction import transaction_manager as transaction
 
 class FilemanValidationError(FilemanError):
     filename, row, fieldid, value, error_code, error_msg = None, None, None, None, None, None
@@ -29,10 +30,11 @@ class DBSRow(object):
         or label:              row["name"]
 
         TODO: lots
-        I need to add update logic to the rows so I can write to them
         What about the other values, e.g. subfiles, wp files - do they come across.
     """
     _changed = False
+    _changed_fields = []
+    _locked = False
     _dbsfile = None
     _dd = None
     _rowid = None
@@ -88,7 +90,58 @@ class DBSRow(object):
             raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
 
+        if not self._changed:
+            self._lock()
+            transaction.join(self)
+
+        if fieldid not in self._changed_fields:
+            self.changed_fields.append(fieldid)
+
         return value
+
+    def _lock(self):
+        """
+            Lock a global (path to a row).
+            This functionality is here so that transaction management
+            can remove locks on a commit, abort
+        """
+        if self._locked: return
+
+        if self._rowid: # nothing to lock
+            g_path = self._dd.m_closed_form(self._rowid)
+            # There is a DILF^LOCK function but it does not have an unlock
+            M.proc("LOCK^DILF", g_path)
+            self._locked = 1
+
+    def _unlock(self):
+        # Locking is done via an M level routine on the record global
+        g_path = self._dd.m_closed_form(self._rowid)
+        M.mexec(str("LOCK -%s" % g_path))   # TODO: mexec to take unicode
+        self._locked = False
+            
+    def _on_commit(self):
+        if self._rowid:
+            self._update()
+        else:
+            self._insert()
+            
+    def _on_abort(self):
+        pass
+
+    def _on_after_commit(self):
+        self._unlock()
+        self._changed = False
+        self.changed_fields = []
+            
+    def _on_after_abort(self):
+        self._unlock()
+        self._changed = False
+        self.changed_fields = []
+
+        #   Any data in the object is dirty 
+        #   this should force it to reload if it is accessed again
+        if self._changed:
+            self._stored_data = None
 
     @property
     def _data(self):
@@ -199,6 +252,10 @@ class DBSRow(object):
             Write changed data back to the database.
             
             This is intended to be used during a transaction commit.
+
+            TODO: this approach doesn't work. I have to copy the values
+            which have changed to a new area and update them only. This
+            attempts to update computed fields.
         """
         g = M.Globals()
         g["ERR"].kill()
@@ -208,7 +265,7 @@ class DBSRow(object):
         # K - lock the record
         # S - do not clear the row global
         # T - verify the data
-        M.proc("FILE^DIE", "EKST" , self._row_tmpid, "ERR")
+        M.proc("FILE^DIE", "EST" , self._row_tmpid, "ERR")
 
         # Check for error
         err = g["ERR"]
