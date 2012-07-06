@@ -19,6 +19,15 @@ class FilemanValidationError(FilemanError):
             % (self.filename, self.row, self.fieldid, self.value, self.error_code, self.error_msg,
             self.help)
 
+class FilemanLockFailed(FilemanError):
+    filename, row, timeout = None, None, None
+    def __init__(self, **kwargs):
+        for k,v in kwargs.items():
+            setattr(self, k, v)
+    def __str__(self):
+        return """file [%s], row = [%s], timeout = [%s]""" \
+            % (self.filename, self.row, self.timeout)
+
 class DBSRow(object):
     """
         This is the key to the whole implementation.  This object maps to a single row
@@ -107,7 +116,7 @@ class DBSRow(object):
 
         return value
 
-    def _lock(self):
+    def _lock(self, timeout=5):
         """
             Lock a global (path to a row).
             This functionality is here so that transaction management
@@ -116,16 +125,28 @@ class DBSRow(object):
         if self._locked: return
 
         if self._rowid: # nothing to lock
+
+            g = M.Globals()
             g_path = self._dd.m_closed_form(self._rowid)
-            # There is a DILF^LOCK function but it does not have an unlock
+
+            # Set the timeout
+            g["DILOCKTM"].value = timeout
+
+            # use DILF^LOCK function to perform the lock
             M.proc("LOCK^DILF", g_path)
+
+            # result is returned in $T
+            rv, = M.mexec("set l0=$T", M.INOUT(0))
+            if rv != 1:
+                raise FilemanLockFailed(filename=self._dd.filename, row=self._rowid, timeout=timeout)
             self._locked = 1
 
     def _unlock(self):
         # Locking is done via an M level routine on the record global
-        g_path = self._dd.m_closed_form(self._rowid)
-        M.mexec(str("LOCK -%s" % g_path))   # TODO: mexec to take unicode
-        self._locked = False
+        if self._locked:
+            g_path = self._dd.m_closed_form(self._rowid)
+            M.mexec(str("LOCK -%s" % g_path))   # TODO: mexec to take unicode
+            self._locked = False
             
     def _on_commit(self):
         if self._rowid:
@@ -155,7 +176,7 @@ class DBSRow(object):
     def _data(self):
         # for lazy evaluation
         if self._stored_data is None:
-            self.retrieve()
+            self._retrieve()
         return self._stored_data
 
     @property
@@ -310,11 +331,12 @@ class DBSRow(object):
 
         # Create an FDA format array for fileman
         fdaid = self._create_fda()
+        ienid = "ien%s" % id(self)
 
         # Flags:
         # E - use external formats
         # S - do not clear the row global
-        M.proc("UPDATE^DIE", "ES" , fdaid, "", "ERR")
+        M.proc("UPDATE^DIE", "ES" , fdaid, ienid, "ERR")
 
         # Check for error
         err = g["ERR"]
@@ -330,7 +352,10 @@ class DBSRow(object):
 
             raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
-
+        
+        # What is the id of the new record?
+        self._rowid = int(g[ienid]['1'].value)
+        self._stored_data = None
 
     def _update(self):
         """
