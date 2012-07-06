@@ -494,8 +494,6 @@ class DBSRow(object):
         """
             Called for misses
         """
-        if key[0] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
-            return super(DBSRow, self).__getattr__(key)
         fieldid = self._dd.attrs.get(key, None)
         if fieldid is not None:
             return self[fieldid]

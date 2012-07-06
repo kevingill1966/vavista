@@ -3,12 +3,12 @@
 
 import unittest
 
-from vavista.fileman import DBS
+from vavista.fileman import connect
 
-class TestDBS(unittest.TestCase):
+class TestFileman(unittest.TestCase):
 
     def setUp(self):
-        self.dbs = DBS("0", "")
+        self.dbs = connect("0", "")
 
     def tearDown(self):
         pass
@@ -17,7 +17,7 @@ class TestDBS(unittest.TestCase):
         file = self.dbs.get_file("FILE")
         self.assertEqual(file.dd.fileid, "1")
         self.assertEqual(file.get("1")[".01"].value, "FILE")
-        self.assertEqual(file.get("1").name.value, "FILE")
+        self.assertEqual(file.get("1").NAME.value, "FILE")
 
     def test_list_files(self):
         rv = self.dbs.list_files()
@@ -39,7 +39,7 @@ class TestDBS(unittest.TestCase):
         print file.get("5159")
 
 
-test_cases = (TestDBS,)
+test_cases = (TestFileman,)
 
 def load_tests(loader, tests, pattern):
     suite = unittest.TestSuite()
