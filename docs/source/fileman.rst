@@ -43,8 +43,12 @@ Example::
     print patient1.NAME
     print patient1
 
-I am working on the update logic. The concept is that you modify an object
-and it will write out the data during a transaction commit.
+Modifying data
+--------------
+
+You can modify files. Files can only be modified in a transaction. The
+updates are written to fileman when the transaction commit occurs.
+
 
 ::
 
@@ -56,7 +60,7 @@ and it will write out the data during a transaction commit.
     patient2.NAME = 'FIRST,LAST'
     transaction.commit()    # writes out here.
 
-New record
+To create a new record, use the new() operator on the FILE.::
 
     from vavista.fileman import connect, transaction
     transaction.begin()
@@ -66,3 +70,42 @@ New record
     patientn.NAME = 'NEW,PATIENT'
     transaction.commit()    # writes out here.
 
+Locking
+-------
+
+Once a record is modified, the row is locked in the database. Locks are
+released on transaction commit/abort, and on process exit.
+
+GT.M has a lock manager called lke. 
+
+::
+
+    $ lke
+    LKE> SHOW -ALL
+
+    DEFAULT
+    ^DIZ(999900,18) Owned by PID= 1475 which is an existing process
+
+
+WIP
+---
+
+The insert / update logic has only been validated with very simple field types.
+The full set of field types has to be investigated.
+
+sub-files, references and back references have to be investigated.
+
+I have to verify that inserts/updates maintain integrity of indexes, audit.
+
+I have to test with non-programming user and understand the security 
+infrastructure.
+
+I need index and file iterators, so that I can produce a resultset.
+
+I need flags to get() and new() to use internal instead of external form data.
+
+I need functions to create simple tables so that I can build automated
+tests.
+
+How to delete records. Seems to be classic api, but no DBS api call.
+There also seems to be no interactive option.
