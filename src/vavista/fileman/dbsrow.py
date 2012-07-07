@@ -275,6 +275,8 @@ class DBSRow(object):
     def __del__(self):
         # Each time we retrieve a row, it is copied to a temporary store. 
         # This needs to be killed or we have a memory leak in GT.M
+        if M == None:
+            return # happens during process exit
         g = M.Globals()
         g[self._row_tmpid].kill()
         if self._row_fdaid:
