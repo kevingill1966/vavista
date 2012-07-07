@@ -120,16 +120,8 @@ class Global(object):
     
     def printable(self):
         rv = []
-        try:
-            rv.append(self.value)  # may not have value
-        except:
-            pass
-        for k, v in self.items():
-            rv.append('%s.%s = "%s"' % (".".join(self.path), k, v))
-        for k in self.keys_with_decendants():
-            children = self[k].printable()
-            if children:
-                rv = rv + children
+        for k, v in self.serialise(trim_path=0):
+            rv.append('%s = "%s"' % (".".join(self.path), v))
         return rv
     
     def __str__(self):
@@ -288,7 +280,49 @@ class Global(object):
             return 1
         return 0
 
+    def deserialise(self, serialised_form):
+        """
+            Create a global from a serialised format
+        """
 
+    def serialise(self, trim_path=None):
+        """
+            Convert a global to a serialised format.
+            returns a list of (key, value) pairs
+
+            By default leading path parts are trimmed to simplify
+            copying part of the global structure to another part.
+
+            Converts to (path, value) pairs. You can convert it to
+            a wire format, e.g. json
+
+            g = Globals()
+            source = g["^DIC"]["999900"]
+            ser = source.serialise(0)
+            json.dumps(ser)
+            for k, v in ser: print k, " = ", v
+        """
+        rv = []
+
+        if trim_path == None:
+            trim_path = len(self.path)
+        path = self.path[trim_path:]
+
+        try:
+            rv.append((path, self.value))
+        except:
+            pass
+
+        decendants = self.keys_with_decendants()
+        for k, v in self.items():
+            if k not in decendants:
+                rv.append((path + [k], v))
+        for k in self.keys_with_decendants():
+            children = self[k].serialise(trim_path=trim_path)
+            if children:
+                rv = rv + children
+        return rv
+    
 class Globals(object):
     """
     The Globals class provides a starting point for accessing Mumps Globals

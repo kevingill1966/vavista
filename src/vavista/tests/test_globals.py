@@ -27,6 +27,12 @@ class TestGlobals(unittest.TestCase):
         self.assertEqual("^TESTPGLOBALS" in keys, 1)
         self.assertEqual("TESTGLOBALS" in keys, 1)
 
+    def test_serialise(self):
+        g = Globals()
+        source = g["^DIC"]["999900"]
+        ser = source.serialise(1)
+        # TODO: deserialise and compare
+
     def test_value(self):
         g = Globals()
         v = g["^TESTPGLOBALS"][0][0].value
