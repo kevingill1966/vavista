@@ -133,3 +133,10 @@ tests.
 
 How to delete records. Seems to be classic api, but no DBS api call.
 There also seems to be no interactive option.
+
+There doesn't seem to be an api to create files. You seem to have to
+create them interactively, and then dump the globals. 
+
+The idea of presenting the mumps values to the application is not
+sound. Use the fieldtypes in the data dictionary to convert between
+the fileman storage and the python space.
