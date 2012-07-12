@@ -29,9 +29,22 @@ class TestGlobals(unittest.TestCase):
 
     def test_serialise(self):
         g = Globals()
+        import pdb; pdb.set_trace()
         source = g["^DIC"]["999900"]
         ser = source.serialise(1)
         # TODO: deserialise and compare
+        dest = g["MYDIC"]
+        dest.deserialise(ser)
+        print dest
+        
+        ser2 = dest.serialise(0)
+        dest.kill()
+        print dest
+        g.deserialise(ser2)
+        dest.deserialise(ser)
+        print dest
+
+
 
     def test_value(self):
         g = Globals()

@@ -26,6 +26,30 @@ class REF(object):
     def __init__(self, value):
         self.value = value
 
+def safe_str(s):
+    """
+        Return string version of s as used as a variable (s0) in a mumps expression,
+    """
+    return unicode(s).encode('utf-8')
+
+def as_mvalue(s):
+    """
+        Return string version of s as used as a value in a valid mumps expression,
+        i.e. quoted if non numeric
+    """
+    try:
+        int(s)
+        return s
+    except:
+        pass
+    try:
+        float(s)
+        return s
+    except:
+        pass
+
+    return '"%s"' % safe_str(s)
+
 def proc(procedure, *inparams):
     iStr, iInt, iDbl = 0, 0, 0
     params = []
@@ -121,11 +145,11 @@ class Global(object):
     def printable(self):
         rv = []
         for k, v in self.serialise(trim_path=0):
-            rv.append('%s = "%s"' % (".".join(self.path), v))
+            rv.append('%s=%s' % (k, as_mvalue(v)))
         return rv
     
     def __str__(self):
-        return '\n'.join([unicode(s) for s in self.printable()])
+        return '\n'.join(self.printable())
 
     def __repr__(self):
         # I am encoding this in UTF-8 because pdb uses this to display variables
@@ -194,9 +218,14 @@ class Global(object):
                 break
         return rv
 
-    def items(self):
+    def walk(self, filter=1):
         """
             This returns the keys, values which have a value (not those with decendants but without values).
+            filter=1 finds keys with data
+            filter=10 finds keys with children
+            filter=11 finds keys with data or children
+
+            returns path, value, flags
         """
         if len(self.path) > 1:
             path = '%s("%s",s0)' % (self.path[0], '","'.join(self.path[1:]))
@@ -208,30 +237,30 @@ class Global(object):
         while 1:
             s0, l0, s1 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s),s1=$GET(%s) ' % (path, path, path), INOUT(s0), INOUT(0), INOUT(""))
             if s0:
-                if l0 & 1:
-                    rv.append((s0, s1))
+                if l0 & filter:
+                    rv.append((s0, s1, l0))
             else:
                 break
+        return rv
+
+    def items(self):
+        """
+            This returns the keys, values which have a value (not those with decendants but without values).
+        """
+        rv = []
+        for item in self.walk(1):
+            k,v,f = item
+            rv.append((k,v))
         return rv
 
     def values(self):
         """
             This returns the values which have a value (not those with decendants but without values).
         """
-        if len(self.path) > 1:
-            path = '%s("%s",s0)' % (self.path[0], '","'.join(self.path[1:]))
-        else:
-            path = '%s(s0)' % (self.path[0])
-
-        s0 = ""
         rv = []
-        while 1:
-            s0, l0, s1 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s),s1=$GET(%s) ' % (path, path, path), INOUT(s0), INOUT(0), INOUT(""))
-            if s0:
-                if l0 & 1:
-                    rv.append(s1)
-            else:
-                break
+        for item in self.walk(1):
+            k,v,f = item
+            rv.append(v)
         return rv
 
 
@@ -239,19 +268,10 @@ class Global(object):
         """
             This returns the keys which have decendants (not those with values but without decendants).
         """
-        if len(self.path) > 1:
-            path = '%s("%s",s0)' % (self.path[0], '","'.join(self.path[1:]))
-        else:
-            path = '%s(s0)' % (self.path[0])
-        s0 = ""
         rv = []
-        while 1:
-            s0, l0 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s) ' % (path, path), INOUT(s0), INOUT(0))
-            if s0:
-                if l0 & 10:
-                    rv.append(s0)
-            else:
-                break
+        for item in self.walk(10):
+            k,v,f = item
+            rv.append((k,v))
         return rv
 
     def exists(self):
@@ -282,16 +302,30 @@ class Global(object):
 
     def deserialise(self, serialised_form):
         """
-            Create a global from a serialised format
+            Create a global from a serialised format. 
+            The serialised form is open form.
+
+            Warning - obviously everything at the values will be overwritten.
         """
+        prefix = self.open_form
+        for k, v in serialised_form:
+            mexec(str("set %s%s=s0" % (prefix, k)), safe_str(v))
 
     def serialise(self, trim_path=None):
         """
             Convert a global to a serialised format.
-            returns a list of (key, value) pairs
+            returns a list of (key, value) pairs. The format is intended
+            to be M compatible.
 
-            By default leading path parts are trimmed to simplify
-            copying part of the global structure to another part.
+            Should be the same as 
+
+                zwrite ^DIC("999900",*)
+
+            Trim leading path parts to simplify copying part of the global
+            structure to another part. If you give it, 2 for example, the
+            first two part of the path are removed. Open form is deserialised 
+            via this class (Global). Closed for is deserialised via the Globals
+            class.
 
             Converts to (path, value) pairs. You can convert it to
             a wire format, e.g. json
@@ -300,28 +334,60 @@ class Global(object):
             source = g["^DIC"]["999900"]
             ser = source.serialise(0)
             json.dumps(ser)
-            for k, v in ser: print k, " = ", v
+            for k, v in ser: print k, "=", v
         """
         rv = []
 
-        if trim_path == None:
-            trim_path = len(self.path)
-        path = self.path[trim_path:]
-
         try:
-            rv.append((path, self.value))
+            rv.append((self.open_form_suffix(trim_path), self.value))
         except:
             pass
 
-        decendants = self.keys_with_decendants()
-        for k, v in self.items():
-            if k not in decendants:
-                rv.append((path + [k], v))
-        for k in self.keys_with_decendants():
-            children = self[k].serialise(trim_path=trim_path)
-            if children:
-                rv = rv + children
+        for item in self.walk(filter=11):
+            k,v,f = item
+            if f & 10:
+                children = self[k].serialise(trim_path=trim_path)
+                if children:
+                    rv = rv + children
+            elif f & 1:
+                subval = self[k]
+                rv.append((subval.open_form_suffix(trim_path), v))
         return rv
+
+    @property
+    def closed_form(self):
+        """
+            Return the closed form of the path
+        """
+        path = self.path
+        if len(path) == 1:
+            return path[0]
+        else:
+            return '%s(%s)' % (path[0], ','.join([as_mvalue(s) for s in path[1:]]))
+
+    @property
+    def open_form(self):
+        """
+            Return the open form of the path
+        """
+        path = self.path
+        if len(path) == 1:
+            return "%s(" % path[0]
+        else:
+            return '%s(%s,' % (path[0], ','.join([as_mvalue(s) for s in path[1:]]))
+
+    def open_form_suffix(self, trim_path):
+        """
+            return an open form of the path for use with a prefix
+            i.e.
+
+                "0","0")
+        """
+        if not trim_path:
+            return self.closed_form
+        path = self.path[trim_path:]
+        return '%s)' % (','.join([as_mvalue(s) for s in path]))
+
     
 class Globals(object):
     """
@@ -353,5 +419,15 @@ class Globals(object):
     def __getitem__(self, key):
         # TODO - key must begin with ^ or alpha numeric
         return Global([key])
+
+    def deserialise(self, serialised_form):
+        """
+            Create a global from a serialised format. 
+            The serialised form is closed form.
+
+            Warning - obviously everything at the values will be overwritten.
+        """
+        for k, v in serialised_form:
+            mexec(str("set %s=s0" % k), safe_str(v))
 
 
