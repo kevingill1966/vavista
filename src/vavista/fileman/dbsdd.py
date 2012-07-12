@@ -135,6 +135,18 @@ class Field(object):
         
         return cls.c_isa(flags)
 
+    def pyfrom_internal(self, s):
+        return s
+
+    def pyfrom_external(self, s):
+        return s
+
+    def pyto_internal(self, s):
+        return s
+
+    def pyto_external(self, s):
+        return s
+
 class FieldDatetime(Field):
     fmql_type = FT_DATETIME
 
@@ -367,7 +379,7 @@ class _DD(object):
         """
         if self._gl is None:
             g = M.Globals()
-            self._gl = str(g["^DIC"][self.fileid][0]["GL"])
+            self._gl = str(g["^DIC"][self.fileid][0]["GL"].value)
         return "%s%s)" % (self._gl, rowid)
 
     def m_open_form(self):
@@ -376,7 +388,7 @@ class _DD(object):
         """
         if self._gl is None:
             g = M.Globals()
-            self._gl = str(g["^DIC"][self.fileid][0]["GL"])
+            self._gl = str(g["^DIC"][self.fileid][0]["GL"].value)
         return self._gl
 
 

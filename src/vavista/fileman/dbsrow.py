@@ -214,7 +214,21 @@ class DBSRow(object):
     def items(self):
         return self._data.items()
 
+    def _field_from_id(self, fieldid):
+        """
+            Given a fieldid, return the data dictionary object.
+        """
+        return self._dd._fields[fieldid]
+
     def __getitem__(self, fieldid, default=''):
+        value = self._getitem(fieldid, default=default).value
+        field = self._field_from_id(fieldid)
+        if self._internal:
+            return field.pyfrom_internal(value)
+        else:
+            return field.pyfrom_external(value)
+        
+    def _getitem(self, fieldid, default=''):
         """
             Return a field using array notation
 
@@ -240,7 +254,7 @@ class DBSRow(object):
                     v['I']._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
                 else:
                     v._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
-                return self[fieldid]
+                return self._getitem(fieldid)
 
             raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
                 (self._dd.fileid, self._dd.filename), fieldid)
@@ -268,7 +282,12 @@ class DBSRow(object):
             return super(DBSRow, self).__setattr__(key, value)
         fieldid = self._dd.attrs.get(key, None)
         if fieldid is not None:
-            self[fieldid].value = value
+            field = self._field_from_id(fieldid)
+            if self._internal:
+                mvalue = field.pyto_internal(value)
+            else:
+                mvalue = field.pyto_external(value)
+            self._getitem(fieldid).value = mvalue
             return
         raise AttributeError(key)
 
@@ -338,7 +357,7 @@ class DBSRow(object):
         iens = self._iens
         for fieldid in self._changed_fields:
             # if internal self[fieldid] handles it
-            fda[fileid][iens][fieldid].value = self[fieldid].value
+            fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
         return row_fdaid
 
     def _insert(self):

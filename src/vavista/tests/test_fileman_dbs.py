@@ -16,8 +16,8 @@ class TestFileman(unittest.TestCase):
     def test_fileid(self):
         file = self.dbs.get_file("FILE")
         self.assertEqual(file.dd.fileid, "1")
-        self.assertEqual(file.get("1")[".01"].value, "FILE")
-        self.assertEqual(file.get("1").NAME.value, "FILE")
+        self.assertEqual(file.get("1")[".01"], "FILE")
+        self.assertEqual(file.get("1").NAME, "FILE")
 
     def test_list_files(self):
         rv = self.dbs.list_files()
