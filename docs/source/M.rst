@@ -115,13 +115,13 @@ Example::
         # Note globals commencing with ^ are persistent
         # all indexes are strings
 
-        g = vista.M.Globals()
-        g['^gl']['0'].keys()        # only keys with values
-        g['^gl']['0'].items()       # key / value return (no decendant info)
-        g['^gl']['0'].value         # single value
-        g['^gl']['0'].has_value()
-        g['^gl']['0'].has_decendants()
-        g['^gl']['0'].keys_with_decendants()
+        from = vista.M import Globals
+        Globals['^gl']['0'].keys()        # only keys with values
+        Globals['^gl']['0'].items()       # key / value return (no decendant info)
+        Globals['^gl']['0'].value         # single value
+        Globals['^gl']['0'].has_value()
+        Globals['^gl']['0'].has_decendants()
+        Globals['^gl']['0'].keys_with_decendants()
 
-        g['^gl']['0'].kill()         # kill value and decendants
+        Globals['^gl']['0'].kill()         # kill value and decendants
 
