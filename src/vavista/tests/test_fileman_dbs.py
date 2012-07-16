@@ -4,6 +4,7 @@
 import unittest
 
 from vavista.fileman import connect, transaction
+from vavista.M import Globals
 
 class TestFileman(unittest.TestCase):
 
@@ -79,7 +80,104 @@ class TestFileman(unittest.TestCase):
         # delete
         copy.delete()
 
-test_cases = (TestFileman,)
+class TestTextline(unittest.TestCase):
+    """
+        Create a simple file containing two text lines,
+        one mandatory and one optional. Verify that the
+        read and write functionality works.
+    """
+
+    # DIC record
+    DIC = [
+        ('^DIC(9999902,0)', u'PYTEST1^9999902'),
+        ('^DIC(9999902,0,"AUDIT")', '@'),
+        ('^DIC(9999902,0,"DD")', '@'),
+        ('^DIC(9999902,0,"DEL")', '@'),
+        ('^DIC(9999902,0,"GL")', '^DIZ(9999902,'),
+        ('^DIC(9999902,0,"LAYGO")', '@'),
+        ('^DIC(9999902,0,"RD")', '@'),
+        ('^DIC(9999902,0,"WR")', '@'),
+        ('^DIC(9999902,"%A")', '10000000020^3120716'),
+    ]
+
+    # ^DIZ record
+    DIZ = [
+        ('^DIZ(9999902,0)', 'PYTEST1^9999902^')
+    ]
+
+    # ^DD record
+    DD = [
+        ('^DD(9999902,0)', u'FIELD^^2^3'),
+        ('^DD(9999902,0,"DT")', '3120716'),
+        ('^DD(9999902,0,"IX","B",9999902,.01)', ''),
+        ('^DD(9999902,0,"NM","PYTEST1")', ''),
+        ('^DD(9999902,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
+        ('^DD(9999902,.01,1,0)', '^.1'),
+        ('^DD(9999902,.01,1,1,0)', '9999902^B'),
+        ('^DD(9999902,.01,1,1,1)', 'S ^DIZ(9999902,"B",$E(X,1,30),DA)=""'),
+        ('^DD(9999902,.01,1,1,2)', 'K ^DIZ(9999902,"B",$E(X,1,30),DA)'),
+        ('^DD(9999902,.01,3)', 'NAME MUST BE 3-30 CHARACTERS, NOT NUMERIC OR STARTING WITH PUNCTUATION'),
+        ('^DD(9999902,1,0)', 'Textline One^F^^0;2^K:$L(X)>200!($L(X)<1) X'),
+        ('^DD(9999902,1,.1)', 'Text Line One'),
+        ('^DD(9999902,1,3)', 'Answer must be 1-200 characters in length.'),
+        ('^DD(9999902,1,"DT")', '3120716'),
+        ('^DD(9999902,2,0)', 'textline2^RF^^1;1^K:$L(X)>200!($L(X)<1) X'),
+        ('^DD(9999902,2,3)', 'Answer must be 1-200 characters in length.'),
+        ('^DD(9999902,2,"DT")', '3120716'),
+        ('^DD(9999902,"B","NAME",.01)', ''),
+        ('^DD(9999902,"B","Text Line One",1)', '1'),
+        ('^DD(9999902,"B","Textline One",1)', ''),
+        ('^DD(9999902,"B","textline2",2)', ''),
+        ('^DD(9999902,"GL",0,1,.01)', ''),
+        ('^DD(9999902,"GL",0,2,1)', ''),
+        ('^DD(9999902,"GL",1,1,2)', ''),
+        ('^DD(9999902,"IX",.01)', ''),
+        ('^DD(9999902,"RQ",.01)', ''),
+        ('^DD(9999902,"RQ",2)', '')
+    ]
+
+    def setUp(self):
+        self.dbs = connect("0", "")
+
+        # This creates a file
+        Globals["^DIC"]["9999902"].kill()
+        Globals["^DD"]["9999902"].kill()
+        Globals["^DIZ"]["9999902"].kill()
+        Globals.deserialise(self.DIC)
+        Globals.deserialise(self.DD)
+        Globals.deserialise(self.DIZ)
+
+    def tearDown(self):
+        # destroy the file
+        Globals["^DIC"]["9999902"].kill()
+        Globals["^DD"]["9999902"].kill()
+        Globals["^DIZ"]["9999902"].kill()
+
+    def test_readwrite(self):
+        dd = self.dbs.dd("PYTEST1")
+        self.assertEqual(dd.fileid, "9999902")
+
+        pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+        record = pytest1.new()
+        record.NAME = 'Test Insert'
+        record.TEXTLINE_ONE = "LINE 1"
+        record.TEXTLINE2 = "LINE 2"
+        transaction.commit()
+
+        # I don't have indexed lookup implemented. I better do that next !!!
+        rec = pytest1.get(1)
+
+        self.assertEqual(str(rec.NAME), "Test Insert")
+        self.assertEqual(str(rec.TEXTLINE_ONE), "LINE 1")
+        self.assertEqual(str(rec.TEXTLINE2), "LINE 2")
+
+        # Once this is working
+        # Verify mandatory field insert logic
+        # Verify utf-8 characters
+        # Verify update
+
+
+test_cases = (TestFileman,TestTextline)
 
 def load_tests(loader, tests, pattern):
     suite = unittest.TestSuite()

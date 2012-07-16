@@ -330,8 +330,7 @@ class Global(object):
             Converts to (path, value) pairs. You can convert it to
             a wire format, e.g. json
 
-            g = Globals()
-            source = g["^DIC"]["999900"]
+            source = Globals["^DIC"]["999900"]
             ser = source.serialise(0)
             json.dumps(ser)
             for k, v in ser: print k, "=", v
@@ -389,14 +388,13 @@ class Global(object):
         return '%s)' % (','.join([as_mvalue(s) for s in path]))
 
     
-class Globals(object):
+class _Globals(object):
     """
     The Globals class provides a starting point for accessing Mumps Globals
     (both temporary and persistent) from python code.
 
-    g = Globals()
-    g.keys()   # list the globals
-    g['^donkey'] # return a global object representing the path ^donkey
+    Globals.keys()   # list the globals
+    Globals['^donkey'] # return a global object representing the path ^donkey
     """
     def keys(self, include_tmp=False):
         pers, tmp = [], []
@@ -431,3 +429,5 @@ class Globals(object):
             mexec(str("set %s=s0" % k), safe_str(v))
 
 
+# Singleton
+Globals = _Globals()

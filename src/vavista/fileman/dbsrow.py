@@ -71,8 +71,7 @@ class DBSRow(object):
         self._row_tmpid = "row%s" % id(self)
         self._stored_data = None
         if rowid is None:
-            g = M.Globals()
-            self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
+            self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
 
     def _before_value_change(self, fieldid, global_var, value):
         """
@@ -85,14 +84,13 @@ class DBSRow(object):
         # dictionary. At write time, the data will be fully validated.
 
         if not self._internal:
-            g = M.Globals()
-            g["ERR"].kill()
+            M.Globals["ERR"].kill()
 
             # Validates single field against the data dictionary
             s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
                 value, M.INOUT(""), "ERR")
 
-            err = g["ERR"]
+            err = M.Globals["ERR"]
 
             # s0 should contain ^ for error, internal value for valid data
             if s0 == "^":
@@ -129,11 +127,10 @@ class DBSRow(object):
 
         if self._rowid: # nothing to lock
 
-            g = M.Globals()
             g_path = self._dd.m_closed_form(self._rowid)
 
             # Set the timeout
-            g["DILOCKTM"].value = timeout
+            M.Globals["DILOCKTM"].value = timeout
 
             # use DILF^LOCK function to perform the lock
             M.proc("LOCK^DILF", g_path)
@@ -246,8 +243,7 @@ class DBSRow(object):
                 return self._data[fieldid]
         except:
             if fieldid in self._fieldids:
-                g = M.Globals()
-                v = g[self._row_tmpid][self._dd.fileid][self._iens][fieldid]
+                v = M.Globals[self._row_tmpid][self._dd.fileid][self._iens][fieldid]
                 v.value = default
                 self._stored_data[fieldid] = v
                 if self._internal:
@@ -296,18 +292,16 @@ class DBSRow(object):
         # This needs to be killed or we have a memory leak in GT.M
         if M == None:
             return # happens during process exit
-        g = M.Globals()
-        g[self._row_tmpid].kill()
+        M.Globals[self._row_tmpid].kill()
         if self._row_fdaid:
-            g[self._row_fdaid].kill()
+            M.Globals[self._row_fdaid].kill()
 
     def _retrieve(self):
         """
             Retrieve values
             Internal or External
         """
-        g = M.Globals()
-        g["ERR"].kill()
+        M.Globals["ERR"].kill()
 
         flags = 'N'    # no nulls
         if self._internal:
@@ -324,13 +318,13 @@ class DBSRow(object):
             "ERR")
 
         # Check for error
-        err = g["ERR"]
+        err = M.Globals["ERR"]
         if err.exists():
             raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], fieldids = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid, "*"), str(err))
 
         # Extract the result and store in python variable
-        self._stored_data = dict(g[self._row_tmpid][self._dd.fileid][self._iens])
+        self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
         self._changed = False
         self._changed_fields = []
 
@@ -349,9 +343,8 @@ class DBSRow(object):
             FDA_ROOT(FILE#,"IENS",FIELD#)="VALUE"
 
         """
-        g = M.Globals()
         self._row_fdaid = row_fdaid = "fda%s" % id(self)
-        fda = g[row_fdaid]
+        fda = M.Globals[row_fdaid]
         fda.kill()
         fileid = self._dd.fileid
         iens = self._iens
@@ -368,8 +361,7 @@ class DBSRow(object):
 
             UPDATE^DIE(FLAGS,FDA_ROOT,IEN_ROOT,MSG_ROOT)
         """
-        g = M.Globals()
-        g["ERR"].kill()
+        M.Globals["ERR"].kill()
 
         # Create an FDA format array for fileman
         fdaid = self._create_fda()
@@ -386,7 +378,7 @@ class DBSRow(object):
         M.proc("UPDATE^DIE", flags , fdaid, ienid, "ERR")
 
         # Check for error
-        err = g["ERR"]
+        err = M.Globals["ERR"]
         if err.exists():
 
             # TODO: Work out the error codes.
@@ -401,7 +393,7 @@ class DBSRow(object):
                 % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
         
         # What is the id of the new record?
-        self._rowid = int(g[ienid]['1'].value)
+        self._rowid = int(M.Globals[ienid]['1'].value)
         self._stored_data = None
 
     def _update(self):
@@ -410,8 +402,7 @@ class DBSRow(object):
             
             This is intended to be used during a transaction commit.
         """
-        g = M.Globals()
-        g["ERR"].kill()
+        M.Globals["ERR"].kill()
 
         # Create an FDA format array for fileman
         fdaid = self._create_fda()
@@ -424,7 +415,7 @@ class DBSRow(object):
         M.proc("FILE^DIE", "EST" , fdaid, "ERR")
 
         # Check for error
-        err = g["ERR"]
+        err = M.Globals["ERR"]
         if err.exists():
             raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
@@ -447,12 +438,11 @@ class DBSRow(object):
             TODO: Validate permissions
         """
         if self._rowid is not None:
-            g = M.Globals()
-            g["Y"].kill()
-            g["DIK"].value = self._dd.m_open_form()
-            g["DA"].value = str(self._rowid)
+            M.Globals["Y"].kill()
+            M.Globals["DIK"].value = self._dd.m_open_form()
+            M.Globals["DA"].value = str(self._rowid)
             M.proc("^DIC")
-            if g["Y"]:
+            if M.Globals["Y"]:
                 # I don't know where to look for the error message - Classic API
                 # Sets the flag, but no variables set
                 raise FilemanError("""DBSRow.delete() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""

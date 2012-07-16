@@ -302,7 +302,6 @@ class _DD(object):
         if self._indices is None:
             self._indices = i = []
 
-            indexid = "0"
             global_name = '^DD(%s,0,"IX","0")' % self.fileid
             prefix = '^DD(%s,0,"IX",' % self.fileid
             while 1:
@@ -378,8 +377,7 @@ class _DD(object):
             Return the closed form for a record from this file.
         """
         if self._gl is None:
-            g = M.Globals()
-            self._gl = str(g["^DIC"][self.fileid][0]["GL"].value)
+            self._gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
         return "%s%s)" % (self._gl, rowid)
 
     def m_open_form(self):
@@ -387,8 +385,7 @@ class _DD(object):
             Return the closed form for a record from this file.
         """
         if self._gl is None:
-            g = M.Globals()
-            self._gl = str(g["^DIC"][self.fileid][0]["GL"].value)
+            self._gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
         return self._gl
 
 
