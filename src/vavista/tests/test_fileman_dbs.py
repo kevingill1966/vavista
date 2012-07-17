@@ -82,6 +82,15 @@ class TestFileman(unittest.TestCase):
         # delete
         copy.delete()
 
+        # Verify that the copy row no longer exists.
+        missing = False
+        try:
+            kevin1.get(rowid)
+        except:
+            missing = True
+        self.assertEqual(missing, True)
+
+
 class TestTextline(unittest.TestCase):
     """
         Create a simple file containing two text lines,

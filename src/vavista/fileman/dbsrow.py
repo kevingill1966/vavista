@@ -441,10 +441,12 @@ class DBSRow(object):
             M.Globals["Y"].kill()
             M.Globals["DIK"].value = self._dd.m_open_form()
             M.Globals["DA"].value = str(self._rowid)
-            M.proc("^DIC")
-            if M.Globals["Y"]:
+            M.proc("^DIK")
+            if M.Globals["Y"] == "-1":
                 # I don't know where to look for the error message - Classic API
                 # Sets the flag, but no variables set
+
+                # This may just mean that the record does not exist
                 raise FilemanError("""DBSRow.delete() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
                     % (self._dd.filename, self._dd.fileid, self._rowid))
 

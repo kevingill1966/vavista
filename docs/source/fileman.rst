@@ -143,6 +143,26 @@ GT.M has a lock manager called lke.
     ^DIZ(999900,18) Owned by PID= 1475 which is an existing process
 
 
+Deleting
+--------
+
+*Warning:* the delete logic is rudimentary. I mapped the Fileman call, but I
+haven't determined the level of validation, specifically how foreign key
+constraints are handled.
+
+*Warning:* Transactions are not implemented.
+
+::
+
+    from vavista.fileman import connect
+    dbs = connect("0", "")
+    patients = dbs.get_file('PATIENT')
+    patient = patients.get('1')
+    patient.delete()
+
+    patient = patients.get('1')
+    # Throws an exception
+
 Internal Versus External
 ------------------------
 
