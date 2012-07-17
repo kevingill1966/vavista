@@ -298,6 +298,7 @@ class _DD(object):
             ^DD(200,0,"IX","A",200,2)=""
             ^DD(200,0,"IX","A16",200,8980.16)=""
             ^DD(200,0,"IX","AASWB",200,654)=""
+
         """
         if self._indices is None:
             self._indices = i = []
@@ -308,7 +309,6 @@ class _DD(object):
                 global_name = M.mexec('set s0=$query(%s)' % global_name, M.INOUT(""))[0]
                 if not global_name or not global_name.startswith(prefix):
                     break
-                print global_name
                 suffix = global_name[len(prefix):-1]
                 parts = suffix.split(",")
                 idx_name = parts[0][1:-1]
@@ -318,6 +318,29 @@ class _DD(object):
                 i.append(index)
 
         return self._indices
+
+    @property
+    def new_indices(self):
+        """
+            TODO: Merge with indices to make something more useful.
+
+            New style indices are stored in an INDEX table
+            There is an index "B" which links to the File Id
+
+            GTM>zwrite ^DD("IX","B",200,*)
+            ^DD("IX","B",200,3)=""
+            ^DD("IX","B",200,5)=""
+
+            GTM>zwrite ^DD("IX",3,*)
+            ^DD("IX",3,0)="200^AVISIT^This is a regular index of the remote DUZ and Station number.^R^^R^IR^W^200.06^^^^^S"
+        """
+        from vavista.fileman import connect
+        c = connect("0","")
+        f = c.get_file("INDEX")
+        rv = []
+        for k, rowid in f.traverser("B", from_value=self.fileid, to_value=self.fileid):
+            rv.append(f.get(rowid))
+        return rv
 
     @property
     def fields(self):

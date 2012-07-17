@@ -36,6 +36,8 @@ class TestFileman(unittest.TestCase):
         print dd
         print self.dbs.dd("FILE")
         print self.dbs.dd("LOCATION")
+        print self.dbs.dd("LOCATION").indices
+        print self.dbs.dd("LOCATION").new_indices
 
     def test_fileget(self):
         file = self.dbs.get_file("OPTION")
@@ -117,10 +119,12 @@ class TestTextline(unittest.TestCase):
     ]
 
     # ^DD record
+    # I added a traditional style index / cross reference (C)
     DD = [
         ('^DD(9999902,0)', u'FIELD^^2^3'),
         ('^DD(9999902,0,"DT")', '3120716'),
         ('^DD(9999902,0,"IX","B",9999902,.01)', ''),
+        ('^DD(9999902,0,"IX","C",9999902,1)', ''),
         ('^DD(9999902,0,"NM","PYTEST1")', ''),
         ('^DD(9999902,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
         ('^DD(9999902,.01,1,0)', '^.1'),
@@ -130,6 +134,12 @@ class TestTextline(unittest.TestCase):
         ('^DD(9999902,.01,3)', 'NAME MUST BE 3-30 CHARACTERS, NOT NUMERIC OR STARTING WITH PUNCTUATION'),
         ('^DD(9999902,1,0)', 'Textline One^F^^0;2^K:$L(X)>200!($L(X)<1) X'),
         ('^DD(9999902,1,.1)', 'Text Line One'),
+        ('^DD(9999902,1,1,0)', '^.1'),
+        # Traditional Index
+        ('^DD(9999902,1,1,1,0)', '9999902^C'),
+        ('^DD(9999902,1,1,1,1)', 'S ^DIZ(9999902,"C",$E(X,1,30),DA)=""'),
+        ('^DD(9999902,1,1,1,2)', 'K ^DIZ(9999902,"C",$E(X,1,30),DA)'),
+        ('^DD(9999902,1,1,1,"DT")', '3120716'),
         ('^DD(9999902,1,3)', 'Answer must be 1-200 characters in length.'),
         ('^DD(9999902,1,"DT")', '3120716'),
         ('^DD(9999902,2,0)', 'textline2^RF^^1;1^K:$L(X)>200!($L(X)<1) X'),
@@ -143,9 +153,29 @@ class TestTextline(unittest.TestCase):
         ('^DD(9999902,"GL",0,2,1)', ''),
         ('^DD(9999902,"GL",1,1,2)', ''),
         ('^DD(9999902,"IX",.01)', ''),
+        # Traditional Index
+        ('^DD(9999902,"IX",1)', ''),
         ('^DD(9999902,"RQ",.01)', ''),
-        ('^DD(9999902,"RQ",2)', '')
+        ('^DD(9999902,"RQ",2)', ''),
     ]
+
+    # ^DD("IX") describes "New" style indexes
+    # TODO: I must allocate the index id dynamically
+    IX = [
+        ('^DD("IX",116,0)', '9999902^D^Regular index on textline2^R^^F^IR^I^9999902^^^^^LS'),
+        ('^DD("IX",116,1)', 'S ^DIZ(9999902,"D",$E(X,1,30),DA)=""'),
+        ('^DD("IX",116,2)', 'K ^DIZ(9999902,"D",$E(X,1,30),DA)'),
+        ('^DD("IX",116,2.5)', 'K ^DIZ(9999902,"D")'),
+        ('^DD("IX",116,11.1,0)', '^.114IA^1^1'),
+        ('^DD("IX",116,11.1,1,0)', '1^F^9999902^2^30^1^F'),
+        ('^DD("IX",116,11.1,1,3)', ''),
+        ('^DD("IX",116,11.1,"AC",1,1)', ''),
+        ('^DD("IX",116,11.1,"B",1,1)', ''),
+        ('^DD("IX",116,11.1,"BB",1,1)', ''),
+        ('^DD("IX","B",9999902,116)', ''),
+        ('^DD("IX","AC",9999902,116)', ''),
+    ]
+
 
     def setUp(self):
         self.dbs = connect("0", "")
@@ -154,15 +184,22 @@ class TestTextline(unittest.TestCase):
         Globals["^DIC"]["9999902"].kill()
         Globals["^DD"]["9999902"].kill()
         Globals["^DIZ"]["9999902"].kill()
+        Globals["^DD"]["IX"]["116"].kill()
+        Globals["^DD"]["IX"]["B"]["9999902"].kill()
+        Globals["^DD"]["IX"]["AC"]["9999902"].kill()
         Globals.deserialise(self.DIC)
         Globals.deserialise(self.DD)
         Globals.deserialise(self.DIZ)
+        Globals.deserialise(self.IX)
 
     def tearDown(self):
         # destroy the file
         Globals["^DIC"]["9999902"].kill()
         Globals["^DD"]["9999902"].kill()
         Globals["^DIZ"]["9999902"].kill()
+        Globals["^DD"]["IX"]["116"].kill()
+        Globals["^DD"]["IX"]["B"]["9999902"].kill()
+        Globals["^DD"]["IX"]["AC"]["9999902"].kill()
 
     def test_readwrite(self):
         dd = self.dbs.dd("PYTEST1")
@@ -193,14 +230,15 @@ class TestTextline(unittest.TestCase):
         # Verify utf-8 characters
         # Verify update
 
-    def test_traversal(self):
+    def test_traversal2(self):
+        return self.test_traversal(False) # External Data
+
+    def test_traversal(self, internal=True):
         """
             Insert multiple items. Verify that traversal back and 
             forward works.
-            TODO: use an index on one of my fields rather than on the
-            default NAME field.
         """
-        pytest1 = self.dbs.get_file("PYTEST1")
+        pytest1 = self.dbs.get_file("PYTEST1", internal=internal)
         for i in range(10):
             record = pytest1.new()
             record.NAME = 'ROW%d' % i
@@ -208,6 +246,8 @@ class TestTextline(unittest.TestCase):
             record.TEXTLINE2 = "%d: LINE 2" % i
         transaction.commit()
 
+        # Index B is a default Key Field on the NAME field
+        # It is a "traditional" index
         cursor = pytest1.traverser("B", "ROW4", "ROW8")
         result = list(cursor)
         self.assertEqual(len(result), 4)
@@ -241,6 +281,45 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[2][0], "ROW6")
         self.assertEqual(result[3][0], "ROW5")
         self.assertEqual(result[4][0], "ROW4")
+
+        # Index C is a Cross reference Field on the TEXTLINE_ONE field
+        # It is a "traditional" index
+
+        # If I just pass in "4" it searches wrongly, putting integers
+        # before strings.
+        # TODO: how to make numbers and strings collate properly
+        cursor = pytest1.traverser("C", "4:", "8:")
+        result = list(cursor)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][0], "4: LINE 1")
+        self.assertEqual(result[1][0], "5: LINE 1")
+        self.assertEqual(result[2][0], "6: LINE 1")
+        self.assertEqual(result[3][0], "7: LINE 1")
+
+        cursor = pytest1.traverser("C", "8:", "4:", ascending=False)
+        result = list(cursor)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][0], "7: LINE 1")
+        self.assertEqual(result[1][0], "6: LINE 1")
+        self.assertEqual(result[2][0], "5: LINE 1")
+        self.assertEqual(result[3][0], "4: LINE 1")
+
+        # Index D is a new style index. Traversal works the same as 
+        # traditional indices.
+        cursor = pytest1.traverser("D", "4:", "8:")
+        result = list(cursor)
+        self.assertEqual(result[0][0], "4: LINE 2")
+        self.assertEqual(result[1][0], "5: LINE 2")
+        self.assertEqual(result[2][0], "6: LINE 2")
+        self.assertEqual(result[3][0], "7: LINE 2")
+
+        cursor = pytest1.traverser("D", "8:", "4:", ascending=False)
+        result = list(cursor)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][0], "7: LINE 2")
+        self.assertEqual(result[1][0], "6: LINE 2")
+        self.assertEqual(result[2][0], "5: LINE 2")
+        self.assertEqual(result[3][0], "4: LINE 2")
 
 test_cases = (TestFileman,TestTextline)
 

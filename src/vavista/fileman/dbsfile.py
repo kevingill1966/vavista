@@ -46,8 +46,6 @@ class IndexIterator:
         return self
 
     def next(self):
-        #import pdb; pdb.set_trace()
-
         lastkey = self.lastkey
         lastrowid = self.lastrowid
         if self.ascending:
@@ -71,7 +69,7 @@ class IndexIterator:
                         if self.from_rule == ">=" and lastkey < self.from_value:
                             assert 0
                     if self.to_value is not None:
-                        if self.to_rule == "<=" and lastkey > self.to_value:
+                        if self.to_rule in ["<=", "="] and lastkey > self.to_value:
                             raise StopIteration
                         if self.to_rule == "<" and lastkey >= self.to_value:
                             raise StopIteration
@@ -85,7 +83,7 @@ class IndexIterator:
                         if self.from_rule == "<=" and lastkey > self.from_value:
                             assert 0
                     if self.to_value is not None:
-                        if self.to_rule == ">=" and lastkey < self.to_value:
+                        if self.to_rule in [">=", "="] and lastkey < self.to_value:
                             raise StopIteration
                         if self.to_rule == ">" and lastkey <= self.to_value:
                             raise StopIteration
@@ -136,14 +134,24 @@ class DBSFile(object):
         """
             Return an iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
+
+            By default match the from value but not the to value.
+            In the case where the from value = to value, we want an 
+            exact match only.
         """
         if ascending:
             if from_rule is None:
-                from_rule = ">="
+                if from_value and to_value and from_value == to_value:
+                    from_rule = "="
+                else:
+                    from_rule = ">="
             else:
                 assert from_rule in (">", ">=", "=")
             if to_rule is None:
-                to_rule = "<"
+                if from_value and to_value and from_value == to_value:
+                    to_rule = "="
+                else:
+                    to_rule = "<"
             else:
                 assert to_rule in ("<", "<=", "=")
         else:
