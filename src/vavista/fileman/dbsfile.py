@@ -5,7 +5,103 @@
     index traversal should be implemented here.
 """
 
+from vavista import M
+
 from dbsrow import DBSRow
+
+class IndexIterator:
+    def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True, from_rule=">=", to_rule="<"):
+        """
+            An iterator which will traverse an index.
+            The iterator should return (key, rowid) pairs.
+
+            Indexes are stored:
+                GLOBAL,INDEXID,VALUE,ROWID=""
+            ^DIZ(999900,"B","hello there from unit test2",183)=""
+            ^DIZ(999900,"B","hello there from unit test2",184)=""
+            ^DIZ(999900,"B","hello there from unit test2",185)=""
+            ^DIZ(999900,"B","record 1",1)=""
+
+        """
+        self.gl = gl_prefix + '"%s",' % index
+        self.from_value = from_value
+        self.to_value = to_value
+        self.ascending = ascending
+        self.from_rule = from_rule
+        self.to_rule = to_rule
+
+        if self.from_value != None and self.to_value != None:
+            if self.ascending:
+                assert(self.from_value <= self.to_value)
+            else:
+                assert(self.to_value <= self.from_value)
+        
+        if self.from_value is None:
+            self.lastkey = ""
+        else:
+            self.lastkey = self.from_value
+        self.lastrowid = ""
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        #import pdb; pdb.set_trace()
+
+        lastkey = self.lastkey
+        lastrowid = self.lastrowid
+        if self.ascending:
+            asc = 1
+        else:
+            asc = -1
+
+        # There is an inefficiency here it takes three searches to find the next record.
+        while 1:
+            if lastrowid is None:
+                # locate the next matching index value
+                lastkey, s1 = M.mexec("""set s0=$order(%ss0),%s) Q:s0'=+s0  s s1=$G(%ss0))""" % (self.gl, asc, self.gl),
+                    M.INOUT(lastkey), M.INOUT(""))
+                if lastkey == "":
+                    raise StopIteration
+
+                if self.ascending:
+                    if self.from_value is not None:
+                        if self.from_rule == ">" and lastkey <= self.from_value:
+                            continue
+                        if self.from_rule == ">=" and lastkey < self.from_value:
+                            assert 0
+                    if self.to_value is not None:
+                        if self.to_rule == "<=" and lastkey > self.to_value:
+                            raise StopIteration
+                        if self.to_rule == "<" and lastkey >= self.to_value:
+                            raise StopIteration
+                    self.lastkey = lastkey
+                    lastrowid = "0"
+
+                else: # descending
+                    if self.from_value is not None:
+                        if self.from_rule == "<" and lastkey >= self.from_value:
+                            continue
+                        if self.from_rule == "<=" and lastkey > self.from_value:
+                            assert 0
+                    if self.to_value is not None:
+                        if self.to_rule == ">=" and lastkey < self.to_value:
+                            raise StopIteration
+                        if self.to_rule == ">" and lastkey <= self.to_value:
+                            raise StopIteration
+                    self.lastkey = lastkey
+                    lastrowid = ""
+
+            # Have the key, get the first matching rowid
+            lastrowid, = M.mexec("""set s0=$order(%s"%s",s1),%d)""" % (self.gl, self.lastkey, asc),
+                    M.INOUT(lastkey), lastrowid)
+            if lastrowid == "":
+                # No match
+                lastrowid = None
+                continue
+            self.lastrowid = lastrowid
+            return self.lastkey, self.lastrowid
+
 
 class DBSFile(object):
     """
@@ -35,6 +131,32 @@ class DBSFile(object):
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
         record._retrieve() # raises exception on failure
         return record
+
+    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None):
+        """
+            Return an iterator which will traverse an index.
+            The iterator should return (key, rowid) pairs.
+        """
+        if ascending:
+            if from_rule is None:
+                from_rule = ">="
+            else:
+                assert from_rule in (">", ">=", "=")
+            if to_rule is None:
+                to_rule = "<"
+            else:
+                assert to_rule in ("<", "<=", "=")
+        else:
+            if from_rule is None:
+                from_rule = "<="
+            else:
+                assert from_rule in ("<", "<=", "=")
+            if to_rule is None:
+                to_rule = ">"
+            else:
+                assert to_rule in (">", ">=", "=")
+        gl_prefix = self.dd.m_open_form()
+        return IndexIterator(gl_prefix, index, from_value, to_value, ascending, from_rule, to_rule)
 
     def new(self):
         """

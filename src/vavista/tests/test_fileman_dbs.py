@@ -1,6 +1,8 @@
 
 # Test the Fileman DBS interface
 
+# TODO: Investigate new and old style indexes
+
 import unittest
 
 from vavista.fileman import connect, transaction
@@ -164,9 +166,15 @@ class TestTextline(unittest.TestCase):
         record.TEXTLINE2 = "LINE 2"
         transaction.commit()
 
-        # I don't have indexed lookup implemented. I better do that next !!!
-        rec = pytest1.get(1)
+        # The low-level traverser, walks index "B", on NAME field
+        # ('^DD(9999902,0,"IX","B",9999902,.01)', ''),
+        cursor = pytest1.traverser("B", "Test")
+        key, rowid = cursor.next()
 
+        # retrieve the record
+        rec = pytest1.get(rowid)
+
+        # validate the inserted data
         self.assertEqual(str(rec.NAME), "Test Insert")
         self.assertEqual(str(rec.TEXTLINE_ONE), "LINE 1")
         self.assertEqual(str(rec.TEXTLINE2), "LINE 2")
@@ -176,6 +184,54 @@ class TestTextline(unittest.TestCase):
         # Verify utf-8 characters
         # Verify update
 
+    def test_traversal(self):
+        """
+            Insert multiple items. Verify that traversal back and 
+            forward works.
+            TODO: use an index on one of my fields rather than on the
+            default NAME field.
+        """
+        pytest1 = self.dbs.get_file("PYTEST1")
+        for i in range(10):
+            record = pytest1.new()
+            record.NAME = 'ROW%d' % i
+            record.TEXTLINE_ONE = "%d: LINE 1" % i
+            record.TEXTLINE2 = "%d: LINE 2" % i
+        transaction.commit()
+
+        cursor = pytest1.traverser("B", "ROW4", "ROW8")
+        result = list(cursor)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][0], "ROW4")
+        self.assertEqual(result[1][0], "ROW5")
+        self.assertEqual(result[2][0], "ROW6")
+        self.assertEqual(result[3][0], "ROW7")
+
+        cursor = pytest1.traverser("B", "ROW8", "ROW4", ascending=False)
+        result = list(cursor)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][0], "ROW8")
+        self.assertEqual(result[1][0], "ROW7")
+        self.assertEqual(result[2][0], "ROW6")
+        self.assertEqual(result[3][0], "ROW5")
+
+        cursor = pytest1.traverser("B", "ROW4", "ROW8", to_rule="<=", from_rule=">=")
+        result = list(cursor)
+        self.assertEqual(len(result), 5)
+        self.assertEqual(result[0][0], "ROW4")
+        self.assertEqual(result[1][0], "ROW5")
+        self.assertEqual(result[2][0], "ROW6")
+        self.assertEqual(result[3][0], "ROW7")
+        self.assertEqual(result[4][0], "ROW8")
+
+        cursor = pytest1.traverser("B", "ROW8", "ROW4", ascending=False, to_rule=">=", from_rule="<=")
+        result = list(cursor)
+        self.assertEqual(len(result), 5)
+        self.assertEqual(result[0][0], "ROW8")
+        self.assertEqual(result[1][0], "ROW7")
+        self.assertEqual(result[2][0], "ROW6")
+        self.assertEqual(result[3][0], "ROW5")
+        self.assertEqual(result[4][0], "ROW4")
 
 test_cases = (TestFileman,TestTextline)
 

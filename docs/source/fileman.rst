@@ -69,6 +69,63 @@ To create a new record, use the new() operator on the FILE.::
     patientn.NAME = 'NEW,PATIENT'
     transaction.commit()    # writes out here.
 
+Searching
+---------
+
+The fileman files contain indexes. You can list the indexes using the data
+dictionary::
+
+    from vavista.fileman import connect
+    dbs = connect("0", "")
+    patients = dbs.get_file('PATIENT')
+
+    print patients.dd.indices[0]
+    > Index(AAICN) on table 2.0992, columns ['.01']
+    print patients.dd.indices[1]
+    > Index(AAP) on table 2, columns ['.1041']
+    print patients.dd.indices[2]
+    > Index(AB) on table 2.312, columns ['.01']
+
+To search, the low level functions just walk the index, returning (key, rowid)
+pairs::
+
+    cursor = patients.traverser("SSN")
+    for i in range(5): print cursor.next()
+    ('443483527', '702'),
+    ('666000000', '100014'),
+    ('666000001', '237'),
+    ('666000002', '205'),
+    ('666000003', '25')
+
+Note: the traverser is walking the index on each call to next. If you evaluate
+the cursor, it will walk the entire cursor before returning.
+
+To and From values. The start and end point to investigate can be included.
+By default the start value is included but the end value is excluded. ::
+
+    cursor = patients.traverser("SSN", '666000001', '666000003')
+    print list(cursor)
+    > [('666000001', '237'), ('666000002', '205')]
+
+You can change the order of the search::
+
+    cursor = patients.traverser("SSN", '666000003', '666000001', ascending=False)
+    print list(cursor)
+    [('666000003', '25'), ('666000002', '205')]
+
+By default, the from value is included, but the to value is excluded, e.g. to get
+the 666's use::
+
+    cursor = patients.traverser("SSN", '666', '667')
+    print list(cursor)
+
+You can include change the inclusion rules::
+
+    cursor = patients.traverser("SSN", '666000001', '666000003', to_rule="<=", from_rule=">=")
+    print list(cursor)
+    [('666000001', '237'), ('666000002', '205'), ('666000003', '25')]
+
+
 Locking
 -------
 
