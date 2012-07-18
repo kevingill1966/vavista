@@ -102,78 +102,79 @@ class TestTextline(unittest.TestCase):
 
     # DIC record
     DIC = [
-        ('^DIC(9999902,0)', u'PYTEST1^9999902'),
-        ('^DIC(9999902,0,"AUDIT")', '@'),
-        ('^DIC(9999902,0,"DD")', '@'),
-        ('^DIC(9999902,0,"DEL")', '@'),
-        ('^DIC(9999902,0,"GL")', '^DIZ(9999902,'),
-        ('^DIC(9999902,0,"LAYGO")', '@'),
-        ('^DIC(9999902,0,"RD")', '@'),
-        ('^DIC(9999902,0,"WR")', '@'),
-        ('^DIC(9999902,"%A")', '10000000020^3120716'),
+        ('^DIC(9999903,0)', u'PYTEST1^9999903'),
+        ('^DIC(9999903,0,"AUDIT")', '@'),
+        ('^DIC(9999903,0,"DD")', '@'),
+        ('^DIC(9999903,0,"DEL")', '@'),
+        ('^DIC(9999903,0,"GL")', '^DIZ(9999903,'),
+        ('^DIC(9999903,0,"LAYGO")', '@'),
+        ('^DIC(9999903,0,"RD")', '@'),
+        ('^DIC(9999903,0,"WR")', '@'),
+        ('^DIC(9999903,"%A")', '10000000020^3120716'),
+        ('^DIC("B","PYTEST1",9999903)', ''),
     ]
 
     # ^DIZ record
     DIZ = [
-        ('^DIZ(9999902,0)', 'PYTEST1^9999902^')
+        ('^DIZ(9999903,0)', 'PYTEST1^9999903^')
     ]
 
     # ^DD record
     # I added a traditional style index / cross reference (C)
     DD = [
-        ('^DD(9999902,0)', u'FIELD^^2^3'),
-        ('^DD(9999902,0,"DT")', '3120716'),
-        ('^DD(9999902,0,"IX","B",9999902,.01)', ''),
-        ('^DD(9999902,0,"IX","C",9999902,1)', ''),
-        ('^DD(9999902,0,"NM","PYTEST1")', ''),
-        ('^DD(9999902,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
-        ('^DD(9999902,.01,1,0)', '^.1'),
-        ('^DD(9999902,.01,1,1,0)', '9999902^B'),
-        ('^DD(9999902,.01,1,1,1)', 'S ^DIZ(9999902,"B",$E(X,1,30),DA)=""'),
-        ('^DD(9999902,.01,1,1,2)', 'K ^DIZ(9999902,"B",$E(X,1,30),DA)'),
-        ('^DD(9999902,.01,3)', 'NAME MUST BE 3-30 CHARACTERS, NOT NUMERIC OR STARTING WITH PUNCTUATION'),
-        ('^DD(9999902,1,0)', 'Textline One^F^^0;2^K:$L(X)>200!($L(X)<1) X'),
-        ('^DD(9999902,1,.1)', 'Text Line One'),
-        ('^DD(9999902,1,1,0)', '^.1'),
+        ('^DD(9999903,0)', u'FIELD^^2^3'),
+        ('^DD(9999903,0,"DT")', '3120716'),
+        ('^DD(9999903,0,"IX","B",9999903,.01)', ''),
+        ('^DD(9999903,0,"IX","C",9999903,1)', ''),
+        ('^DD(9999903,0,"NM","PYTEST1")', ''),
+        ('^DD(9999903,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
+        ('^DD(9999903,.01,1,0)', '^.1'),
+        ('^DD(9999903,.01,1,1,0)', '9999903^B'),
+        ('^DD(9999903,.01,1,1,1)', 'S ^DIZ(9999903,"B",$E(X,1,30),DA)=""'),
+        ('^DD(9999903,.01,1,1,2)', 'K ^DIZ(9999903,"B",$E(X,1,30),DA)'),
+        ('^DD(9999903,.01,3)', 'NAME MUST BE 3-30 CHARACTERS, NOT NUMERIC OR STARTING WITH PUNCTUATION'),
+        ('^DD(9999903,1,0)', 'Textline One^F^^0;2^K:$L(X)>200!($L(X)<1) X'),
+        ('^DD(9999903,1,.1)', 'Text Line One'),
+        ('^DD(9999903,1,1,0)', '^.1'),
         # Traditional Index
-        ('^DD(9999902,1,1,1,0)', '9999902^C'),
-        ('^DD(9999902,1,1,1,1)', 'S ^DIZ(9999902,"C",$E(X,1,30),DA)=""'),
-        ('^DD(9999902,1,1,1,2)', 'K ^DIZ(9999902,"C",$E(X,1,30),DA)'),
-        ('^DD(9999902,1,1,1,"DT")', '3120716'),
-        ('^DD(9999902,1,3)', 'Answer must be 1-200 characters in length.'),
-        ('^DD(9999902,1,"DT")', '3120716'),
-        ('^DD(9999902,2,0)', 'textline2^RF^^1;1^K:$L(X)>200!($L(X)<1) X'),
-        ('^DD(9999902,2,3)', 'Answer must be 1-200 characters in length.'),
-        ('^DD(9999902,2,"DT")', '3120716'),
-        ('^DD(9999902,"B","NAME",.01)', ''),
-        ('^DD(9999902,"B","Text Line One",1)', '1'),
-        ('^DD(9999902,"B","Textline One",1)', ''),
-        ('^DD(9999902,"B","textline2",2)', ''),
-        ('^DD(9999902,"GL",0,1,.01)', ''),
-        ('^DD(9999902,"GL",0,2,1)', ''),
-        ('^DD(9999902,"GL",1,1,2)', ''),
-        ('^DD(9999902,"IX",.01)', ''),
+        ('^DD(9999903,1,1,1,0)', '9999903^C'),
+        ('^DD(9999903,1,1,1,1)', 'S ^DIZ(9999903,"C",$E(X,1,30),DA)=""'),
+        ('^DD(9999903,1,1,1,2)', 'K ^DIZ(9999903,"C",$E(X,1,30),DA)'),
+        ('^DD(9999903,1,1,1,"DT")', '3120716'),
+        ('^DD(9999903,1,3)', 'Answer must be 1-200 characters in length.'),
+        ('^DD(9999903,1,"DT")', '3120716'),
+        ('^DD(9999903,2,0)', 'textline2^RF^^1;1^K:$L(X)>200!($L(X)<1) X'),
+        ('^DD(9999903,2,3)', 'Answer must be 1-200 characters in length.'),
+        ('^DD(9999903,2,"DT")', '3120716'),
+        ('^DD(9999903,"B","NAME",.01)', ''),
+        ('^DD(9999903,"B","Text Line One",1)', '1'),
+        ('^DD(9999903,"B","Textline One",1)', ''),
+        ('^DD(9999903,"B","textline2",2)', ''),
+        ('^DD(9999903,"GL",0,1,.01)', ''),
+        ('^DD(9999903,"GL",0,2,1)', ''),
+        ('^DD(9999903,"GL",1,1,2)', ''),
+        ('^DD(9999903,"IX",.01)', ''),
         # Traditional Index
-        ('^DD(9999902,"IX",1)', ''),
-        ('^DD(9999902,"RQ",.01)', ''),
-        ('^DD(9999902,"RQ",2)', ''),
+        ('^DD(9999903,"IX",1)', ''),
+        ('^DD(9999903,"RQ",.01)', ''),
+        ('^DD(9999903,"RQ",2)', ''),
     ]
 
     # ^DD("IX") describes "New" style indexes
     # TODO: I must allocate the index id dynamically
     IX = [
-        ('^DD("IX",116,0)', '9999902^D^Regular index on textline2^R^^F^IR^I^9999902^^^^^LS'),
-        ('^DD("IX",116,1)', 'S ^DIZ(9999902,"D",$E(X,1,30),DA)=""'),
-        ('^DD("IX",116,2)', 'K ^DIZ(9999902,"D",$E(X,1,30),DA)'),
-        ('^DD("IX",116,2.5)', 'K ^DIZ(9999902,"D")'),
+        ('^DD("IX",116,0)', '9999903^D^Regular index on textline2^R^^F^IR^I^9999903^^^^^LS'),
+        ('^DD("IX",116,1)', 'S ^DIZ(9999903,"D",$E(X,1,30),DA)=""'),
+        ('^DD("IX",116,2)', 'K ^DIZ(9999903,"D",$E(X,1,30),DA)'),
+        ('^DD("IX",116,2.5)', 'K ^DIZ(9999903,"D")'),
         ('^DD("IX",116,11.1,0)', '^.114IA^1^1'),
-        ('^DD("IX",116,11.1,1,0)', '1^F^9999902^2^30^1^F'),
+        ('^DD("IX",116,11.1,1,0)', '1^F^9999903^2^30^1^F'),
         ('^DD("IX",116,11.1,1,3)', ''),
         ('^DD("IX",116,11.1,"AC",1,1)', ''),
         ('^DD("IX",116,11.1,"B",1,1)', ''),
         ('^DD("IX",116,11.1,"BB",1,1)', ''),
-        ('^DD("IX","B",9999902,116)', ''),
-        ('^DD("IX","AC",9999902,116)', ''),
+        ('^DD("IX","B",9999903,116)', ''),
+        ('^DD("IX","AC",9999903,116)', ''),
     ]
 
 
@@ -181,29 +182,37 @@ class TestTextline(unittest.TestCase):
         self.dbs = connect("0", "")
 
         # This creates a file
-        Globals["^DIC"]["9999902"].kill()
-        Globals["^DD"]["9999902"].kill()
-        Globals["^DIZ"]["9999902"].kill()
+        Globals["^DIC"]["9999903"].kill()
+        Globals["^DIC"]['B']["PYTEST1"].kill()
+        Globals["^DD"]["9999903"].kill()
+        Globals["^DIZ"]["9999903"].kill()
         Globals["^DD"]["IX"]["116"].kill()
-        Globals["^DD"]["IX"]["B"]["9999902"].kill()
-        Globals["^DD"]["IX"]["AC"]["9999902"].kill()
+        Globals["^DD"]["IX"]["B"]["9999903"].kill()
+        Globals["^DD"]["IX"]["AC"]["9999903"].kill()
+
         Globals.deserialise(self.DIC)
         Globals.deserialise(self.DD)
         Globals.deserialise(self.DIZ)
         Globals.deserialise(self.IX)
 
+        # Are indices setup
+        dd = self.dbs.dd("PYTEST1")
+        self.assertEqual(len(dd.indices), 2)
+        self.assertEqual(len(dd.new_indices), 1)
+
     def tearDown(self):
         # destroy the file
-        Globals["^DIC"]["9999902"].kill()
-        Globals["^DD"]["9999902"].kill()
-        Globals["^DIZ"]["9999902"].kill()
+        Globals["^DIC"]["9999903"].kill()
+        Globals["^DIC"]['B']["PYTEST1"].kill()
+        Globals["^DD"]["9999903"].kill()
+        Globals["^DIZ"]["9999903"].kill()
         Globals["^DD"]["IX"]["116"].kill()
-        Globals["^DD"]["IX"]["B"]["9999902"].kill()
-        Globals["^DD"]["IX"]["AC"]["9999902"].kill()
+        Globals["^DD"]["IX"]["B"]["9999903"].kill()
+        Globals["^DD"]["IX"]["AC"]["9999903"].kill()
 
     def test_readwrite(self):
         dd = self.dbs.dd("PYTEST1")
-        self.assertEqual(dd.fileid, "9999902")
+        self.assertEqual(dd.fileid, "9999903")
 
         pytest1 = self.dbs.get_file("PYTEST1", internal=False)
         record = pytest1.new()
@@ -213,7 +222,7 @@ class TestTextline(unittest.TestCase):
         transaction.commit()
 
         # The low-level traverser, walks index "B", on NAME field
-        # ('^DD(9999902,0,"IX","B",9999902,.01)', ''),
+        # ('^DD(9999903,0,"IX","B",9999903,.01)', ''),
         cursor = pytest1.traverser("B", "Test")
         key, rowid = cursor.next()
 
@@ -303,6 +312,9 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[1][0], "6: LINE 1")
         self.assertEqual(result[2][0], "5: LINE 1")
         self.assertEqual(result[3][0], "4: LINE 1")
+
+        # TODO: This is not working - I tried to renumber the index and
+        # since then it is not working properly. 
 
         # Index D is a new style index. Traversal works the same as 
         # traditional indices.

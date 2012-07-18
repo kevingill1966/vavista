@@ -53,12 +53,21 @@ class IndexIterator:
         else:
             asc = -1
 
+        # There is a mad collation approach in M, where numbers sort before non-numbers.
+        # this really messes up the keys.
+        # How should I search? 
+
         # There is an inefficiency here it takes three searches to find the next record.
         while 1:
+            try:
+                float(lastkey)
+                lastkey_isnum = True
+            except:
+                lastkey_isnum = False
+
             if lastrowid is None:
                 # locate the next matching index value
-                lastkey, s1 = M.mexec("""set s0=$order(%ss0),%s) Q:s0'=+s0  s s1=$G(%ss0))""" % (self.gl, asc, self.gl),
-                    M.INOUT(lastkey), M.INOUT(""))
+                lastkey, = M.mexec("""set s0=$order(%ss0),%s)""" % (self.gl, asc), M.INOUT(lastkey))
                 if lastkey == "":
                     raise StopIteration
 
@@ -69,7 +78,9 @@ class IndexIterator:
                         if self.from_rule == ">=" and lastkey < self.from_value:
                             assert 0
                     if self.to_value is not None:
-                        if self.to_rule in ["<=", "="] and lastkey > self.to_value:
+                        if self.to_rule == "<=" and lastkey > self.to_value:
+                            raise StopIteration
+                        if self.to_rule == "=" and lastkey != self.to_value:
                             raise StopIteration
                         if self.to_rule == "<" and lastkey >= self.to_value:
                             raise StopIteration
@@ -83,7 +94,9 @@ class IndexIterator:
                         if self.from_rule == "<=" and lastkey > self.from_value:
                             assert 0
                     if self.to_value is not None:
-                        if self.to_rule in [">=", "="] and lastkey < self.to_value:
+                        if self.to_rule == ">=" and lastkey < self.to_value:
+                            raise StopIteration
+                        if self.to_rule == "=" and lastkey != self.to_value:
                             raise StopIteration
                         if self.to_rule == ">" and lastkey <= self.to_value:
                             raise StopIteration
