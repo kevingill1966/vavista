@@ -42,7 +42,7 @@ class DBSRow(object):
         What about the other values, e.g. subfiles, wp files - do they come across.
     """
     _changed = False
-    _changed_fields = []
+    _changed_fields = None
     _locked = False
     _dbsfile = None
     _dd = None
@@ -59,6 +59,7 @@ class DBSRow(object):
         self._dd = dd
         self._rowid = rowid
         self._internal = internal
+        self._changed_fields = []
 
         if fieldids:
             self._fields = dict([(k,v) for (k,v) in dd.fields.items() if v.fieldid in fieldids])
@@ -350,7 +351,10 @@ class DBSRow(object):
         iens = self._iens
         for fieldid in self._changed_fields:
             # if internal self[fieldid] handles it
-            fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
+            try:
+                fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
+            except:
+                import pdb; pdb.set_trace()
         return row_fdaid
 
     def _insert(self):

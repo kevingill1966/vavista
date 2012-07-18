@@ -1,4 +1,4 @@
-; M routines, based on work in the GT.M manual file gtmcip_gtmaccess.zip, and the pyGTMx python module.
+; M routines, based on work in the GT.M manual file gtmcip_gtmaccess.zip, and the pyGTMx python module. ; 7/18/12 11:33pm
 ;
 %vavistagtm  ; entry points to access GT.M
     write "vavistagtm entry point - see documentation for usage of this code"
@@ -12,6 +12,27 @@ mexec(cmd,s0,s1,s2,s3,s4,s5,s6,s7,l0,l1,l2,l3,l4,l5,l6,l7,d0,d1,d2,d3,d4,d5,d6,d
     ; return values 3
     ; 3 x 8 in/out vars
     xecute cmd
+    quit:$quit 0 quit
+    ;
+
+;; This was an attempt at transaction management. It did not work because
+;; you cannot exit a function within a transaction. Furthermore, you cannot
+;; callback into GT.M during a transaction. Transactions are therefore
+;; disabled in GT.M. I am leaving the concept here in the hope that they
+;; will work with Cache.
+tstart
+    ; transaction management
+    ;; TSTART ():SERIAL
+    quit:$quit 0 quit
+    ;
+tcommit
+    ; transaction management
+    ;; TCOMMIT
+    quit:$quit 0 quit
+    ;
+trollback
+    ; transaction management
+    ;; TROLLBACK
     quit:$quit 0 quit
     ;
 

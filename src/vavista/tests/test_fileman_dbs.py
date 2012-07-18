@@ -321,6 +321,58 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[2][0], "5: LINE 2")
         self.assertEqual(result[3][0], "4: LINE 2")
 
+    def test_mandatory(self):
+        """
+            Fileman's concept of mandatory is that the value cannot be
+            set to a null value. However, if a value is never put into
+            it, it is not validated.
+        """
+        pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+        record = pytest1.new()
+        record.NAME = 'ROW1'
+        record.TEXTLINE_ONE = "LINE 1"
+
+        exception = False
+        try:
+            pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+            record = pytest1.new()
+            record.NAME = 'ROW2'
+            record.TEXTLINE_ONE = "LINE 1"
+            record.TEXTLINE2 = ""
+        except:
+            exception = True
+        self.assertEqual(exception, True)
+
+        exception = False
+        try:
+            pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+            record = pytest1.new()
+            record.NAME = 'ROW3'
+            record.TEXTLINE_ONE = "LINE 1"
+            record.TEXTLINE2 = None
+        except:
+            exception = True
+        self.assertEqual(exception, True)
+
+        pytest1 = self.dbs.get_file("PYTEST1", internal=True)
+        record = pytest1.new()
+        record.NAME = 'ROW4'
+        record.TEXTLINE_ONE = "LINE 1"
+
+        pytest1 = self.dbs.get_file("PYTEST1", internal=True)
+        record = pytest1.new()
+        record.NAME = 'ROW5'
+        record.TEXTLINE_ONE = "LINE 1"
+        record.TEXTLINE2 = ""
+
+        pytest1 = self.dbs.get_file("PYTEST1", internal=True)
+        record = pytest1.new()
+        record.NAME = 'ROW6'
+        record.TEXTLINE_ONE = "LINE 1"
+        record.TEXTLINE2 = None
+
+        transaction.commit()
+
 test_cases = (TestFileman,TestTextline)
 
 def load_tests(loader, tests, pattern):

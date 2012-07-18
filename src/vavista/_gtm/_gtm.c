@@ -379,8 +379,80 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
     }
 }
 
+
+static PyObject*
+GTM_tstart(PyObject *self, PyObject *noarg)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+
+    cmd_s.address = "tstart";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+
+static PyObject*
+GTM_tcommit(PyObject *self, PyObject *noarg)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+
+    cmd_s.address = "tcommit";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+
+static PyObject*
+GTM_trollback(PyObject *self, PyObject *noarg)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+
+    cmd_s.address = "trollback";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static PyMethodDef GTMMethods[] = {
     {"mexec",   GTM_mexec,   METH_VARARGS, "Dynamically Invoke a Mumps Command."},
+    {"tstart",   GTM_tstart,   METH_NOARGS, "Transaction begin."},
+    {"tcommit",   GTM_tcommit,   METH_NOARGS, "Transaction commit."},
+    {"trollback",   GTM_trollback,   METH_NOARGS, "Transaction rollback."},
     {NULL,     NULL,         0,            NULL}        /* Sentinel */
 };
 

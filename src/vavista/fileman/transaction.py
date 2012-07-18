@@ -39,6 +39,8 @@
 
 """
 
+from vavista import M
+
 class TransactionManager:
     tracking = []
     in_transaction = False
@@ -54,6 +56,8 @@ class TransactionManager:
 
         assert len(self.tracking) == 0, "There have been some changes before the begin call"
         self.in_transaction = True
+
+        M.tstart()
 
         for fn in self.on_after_begin: fn() # hooks
 
@@ -80,6 +84,8 @@ class TransactionManager:
                 if row_handler:
                     row_handler()
 
+            M.trollback()
+
             for dbrow in self.tracking:
                 row_handler = getattr(dbrow, "_on_after_abort", None)
                 if row_handler:
@@ -105,6 +111,8 @@ class TransactionManager:
                 row_handler = getattr(dbrow, "_on_after_commit", None)
                 if row_handler:
                     row_handler()
+
+            M.tcommit()
 
             for fn in self.on_after_commit: fn() # hooks
         finally:

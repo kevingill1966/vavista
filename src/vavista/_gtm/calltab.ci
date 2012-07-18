@@ -1,2 +1,5 @@
-mexec  : void mexec^vavistagtm(I:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_char_t*,IO:gtm_ulong_t*,IO:gtm_double_t*)
+mexec  : void    mexec^vavistagtm(I:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_char_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_ulong_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_double_t*, IO:gtm_char_t*,IO:gtm_ulong_t*,IO:gtm_double_t*)
 
+tstart   : void    tstart^vavistagtm()
+tcommit  : void    tcommit^vavistagtm()
+trollback: void    trollback^vavistagtm()

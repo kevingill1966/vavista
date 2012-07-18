@@ -21,6 +21,9 @@ import vavista._gtm as _mumps
 
 INOUT=_mumps.INOUT
 mexec=_mumps.mexec
+tstart=_mumps.tstart
+tcommit=_mumps.tcommit
+trollback=_mumps.trollback
 
 class REF(object):
     def __init__(self, value):

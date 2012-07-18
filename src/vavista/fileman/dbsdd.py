@@ -142,9 +142,13 @@ class Field(object):
         return s
 
     def pyto_internal(self, s):
+        if s == None:
+            s = ""
         return s
 
     def pyto_external(self, s):
+        if s == None:
+            s = ""
         return s
 
 class FieldDatetime(Field):
