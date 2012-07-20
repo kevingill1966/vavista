@@ -5,6 +5,7 @@
 """
 
 from vavista import M
+from vavista.fileman.dbsdd import FT_WP
 from shared import FilemanError
 from transaction import transaction_manager as transaction
 
@@ -284,7 +285,21 @@ class DBSRow(object):
                 mvalue = field.pyto_internal(value)
             else:
                 mvalue = field.pyto_external(value)
-            self._getitem(fieldid).value = mvalue
+
+
+            # Special case for WP fields. If the return value is a list,
+            # then it is inserted as fields within the main field, and the
+            # path to it is stored in the value.
+
+            # See fm22_0pm.pdf, page 194
+            if type(mvalue) == list and field.fmql_type == FT_WP:
+                external_path = self._getitem(fieldid)
+                self._getitem(fieldid).value = external_path.closed_form
+                for i in range(len(mvalue)):
+                    node = external_path[str(i+1)]
+                    node.value = mvalue[i]
+            else:
+                self._getitem(fieldid).value = mvalue
             return
         raise AttributeError(key)
 
@@ -350,11 +365,7 @@ class DBSRow(object):
         fileid = self._dd.fileid
         iens = self._iens
         for fieldid in self._changed_fields:
-            # if internal self[fieldid] handles it
-            try:
-                fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
-            except:
-                import pdb; pdb.set_trace()
+            fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
         return row_fdaid
 
     def _insert(self):

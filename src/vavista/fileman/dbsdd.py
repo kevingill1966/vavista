@@ -302,6 +302,33 @@ class FieldWP(Field):
             return s0 == "0"
         return False
 
+    def pyfrom_internal(self, s):
+        if s == "":
+            return None
+        # For the first pass, assume an internal subfile, i.e. the
+        # data is stored on as sub-items on the main item.
+        # the value s will contain a closed format global to the actual record.
+        gl = M.Globals.from_closed_form(s)
+        return [v.decode('utf8') for (k,v) in gl.items() if k != 'I']
+
+    def pyfrom_external(self, s):
+        return self.pyfrom_internal(s)
+
+    def pyto_internal(self, s):
+        if s is None:
+            return []
+        rv = []
+        for part in s:
+            if type(part) == unicode:
+                rv.append(part.encode('utf8'))
+            else:
+                rv.append(str(part))
+        return rv
+
+    def pyto_external(self, s):
+        return self.pyto_internal(s)
+
+
 class FieldComputed(Field):
     fmql_type = FT_COMPUTED
 
