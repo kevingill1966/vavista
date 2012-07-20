@@ -156,9 +156,9 @@ class TestSets(unittest.TestCase):
         transaction.begin()
         try:
             rec.GENDER = "UNKNOWN"
+            transaction.commit()
         except FilemanError, e:
             transaction.abort()
-        transaction.commit()
 
         rec = pytest4.get(rowid)
         self.assertEqual(rec.GENDER, "FEMALE")
