@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # TODO: Copy this out to a installable script
+
 # TODO: Data Only / Definition Only options
 
 # This script generates a python script which can be used to 
@@ -34,6 +35,14 @@ def dump(name, fhOut):
         index_names = Globals["^DD"]["IX"]["BB"][fileid].keys()
         for name in index_names:
             IX = IX + Globals["^DD"]["IX"]["IX"][name][indexid].serialise()
+
+    subfiles = [x[0] for x in Globals["^DD"][fileid]["SB"].keys_with_decendants()]
+    if subfiles:
+        # WP fields end up in subfiles
+        for subfileid in subfiles:
+            # WP subfiles not in ^DIC
+            g = Globals["^DD"][subfileid].serialise()
+            DD = DD + g
 
     fhOut.write("#!/bin/env python\n\n")
     fhOut.write("import sys\nfrom vavista.M import Globals\n\nfilename = '%s'\n\n" % filename)
@@ -75,9 +84,11 @@ def deleteFile():
         fhOut.write("""\tGlobals["^DD"]["IX"]["BB"]["%s"].kill()\n""" % fileid)
         fhOut.write("""\tGlobals["^DD"]["IX"]["AC"]["%s"].kill()\n""" % fileid)
         fhOut.write("""\tGlobals["^DD"]["IX"]["F"]["%s"].kill()\n""" % fileid)
+    for subfileid in subfiles:
+        fhOut.write("""\tGlobals["^DD"]["%s"].kill()\n""" % subfileid)
     fhOut.write('\n\nif __name__ == "__main__":\n')
     fhOut.write("\tif len(sys.argv) == 2 and sys.argv[1] == '-k': deleteFile()\n")
-    fhOut.write("\tcreateFile()\n")
+    fhOut.write("\tcreateFile()\n\n")
 
 if __name__ == "__main__":
     filename = sys.argv[1]
