@@ -137,7 +137,12 @@ class Global(object):
     _children = None
 
     def __init__(self, path):
-        self.path = path
+        self.path = []
+        for p in path:
+            if type(p) == unicode:
+                self.path.append(p.encode('utf8'))
+            else:
+                self.path.append(str(p))
         self._children = {}
 
     def __getitem__(self, key):
@@ -431,6 +436,25 @@ class _Globals(object):
         for k, v in serialised_form:
             mexec(str("set %s=s0" % k), safe_str(v))
 
+    def from_closed_form(self, gl):
+        """
+            Given a closed format path, return the Global that it references.
+        """
+        prefix, suffix = gl[:-1].split("(", 1)
+        path = [prefix]
+        building = ""
+        in_quotes = False
+        for c in suffix:
+            if c == '"':
+                in_quotes = not in_quotes
+                continue
+            if c == "," and not in_quotes:
+                path.append(building)
+                building = ""
+                continue
+            building = building + c
+        if building: path.append(building)
+        return Global(path)
 
 # Singleton
 Globals = _Globals()
