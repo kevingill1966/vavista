@@ -38,6 +38,8 @@ Type Spec : all fields are optional.
     [a]         - audit
 """
 
+import datetime
+
 from vavista import M
 
 from shared import  FilemanError
@@ -152,11 +154,67 @@ class Field(object):
         return s
 
 class FieldDatetime(Field):
+    """
+        The formats are hard-coded. I assume that there is an variable
+        to control the date formatting. Need to check that when parsing
+        TODO: Timezones
+        TODO: DST
+    """
     fmql_type = FT_DATETIME
+    fm_date_format = "%b %d, %Y"
+    fm_datetime_format = "%b %d, %Y@%H:%M:%S"
 
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'D'
+
+    def pyfrom_internal(self, s):
+        if not s:
+            return None
+
+        # Internal format is YYYMMDD.HHMMSS
+        parts = s.split(".")
+        yr = int(parts[0][:3]) + 1700
+        mth = int(parts[0][3:5])
+        day = int(parts[0][5:7])
+        if len(parts) > 1:
+            hr = int(parts[1][0:2])
+            mins = int(parts[1][2:4])
+            secs = int(parts[1][4:6])
+            d = datetime.datetime(yr,mth,day,hr,mins,secs)
+        else:
+            d = datetime.date(yr,mth,day)
+        return d
+
+    def pyfrom_external(self, s):
+        if s == "":
+            return None
+        if s.find('@') == -1:
+            d = datetime.datetime.strptime(s, self.fm_date_format).date()
+        else:
+            d = datetime.datetime.strptime(s, self.fm_datetime_format)
+        return d
+
+    def pyto_internal(self, s):
+        if s == None:
+            return ""
+        if type(s) == datetime.datetime:
+            return "%03.3d%02.2d%02.2d.%02.2d%02.2d%02.2d" % (
+                    s.year - 1700, s.month, s.day, s.hour, s.minute, s.second)
+        else:
+            return "%03.3d%02.2d%02.2d" % (s.year - 1700, s.month, s.day)
+
+    def pyto_external(self, s):
+        if s == None:
+            return ""
+        if type(s) == datetime.datetime:
+            return s.strftime(self.fm_datetime_format)
+        elif type(s) == datetime.date:
+            return s.strftime(self.fm_date_format)
+        else:
+            # Allow T-2 through
+            return str(s)
+
  
 class FieldNumeric(Field):
     """
@@ -364,7 +422,7 @@ class _DD(object):
                 if fieldid == "" or fieldid[0] not in "0123456789.":
                     break
 
-                info = info.split("^") 
+                info = info.split("^", 5) 
                 label = self._clean_label(info[0])
                 try:
                     ftype = info[1]
