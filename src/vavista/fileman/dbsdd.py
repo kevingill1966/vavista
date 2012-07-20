@@ -228,10 +228,49 @@ class FieldNumeric(Field):
             ^DD(999900,6,0)="f7^RNJ18,8^^2;2^K:+X'=X!(X>999999999)!(X<0)!(X?.E1"".""9N.N) X"
     """
     fmql_type = FT_NUMERIC
+    format_info = None
+
+    def init_type(self, fieldinfo):
+        self.format_info = (18, 8)
+        if fieldinfo[1].find("J") != -1:
+            ts = fieldinfo[1].split("J",1)[1]
+            ts = ts.split(",")
+            ts0 = int(ts[0])
+            ts1 = []
+            if len(ts) > 1:
+                for c in ts[1]:
+                    if c not in "0123456789": break
+                    ts1.append(c)
+                if len(ts1) == 0:
+                    ts1 = 0
+                else:
+                    ts1 = int(''.join(ts1))
+            self.format_info = ts0, ts1
 
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'N'
+
+    def pyfrom_internal(self, s):
+        if s == "":
+            s = 0
+        if self.format_info[1]:
+            return float(s)
+        else:
+            return int(s)
+
+    def pyfrom_external(self, s):
+        return self.pyfrom_internal(s)
+
+    def pyto_internal(self, s):
+        if type(s) == float:
+            return "%.*f" % (self.format_info[1], s)
+        else:
+            return "%d" % s
+
+    def pyto_external(self, s):
+        return self.pyto_internal(s)
+
  
 class FieldText(Field):
     fmql_type = FT_TEXT
