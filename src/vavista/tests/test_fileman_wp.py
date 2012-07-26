@@ -66,7 +66,7 @@ class TestWP(unittest.TestCase):
         ('^DD(9999907.01,0,"DT")', '3120720'),
         ('^DD(9999907.01,0,"NM","wp1")', ''),
         ('^DD(9999907.01,0,"UP")', '9999907'),
-        ('^DD(9999907.01,.01,0)', 'wp1^Wx^^0;1^Q'),
+        ('^DD(9999907.01,.01,0)', 'wp1^Wx^^0;1^Q'),  # no-wrap
         ('^DD(9999907.01,.01,"DT")', '3120720'),
         ('^DD(9999907.01,"B","wp1",.01)', ''),
         ('^DD(9999907.01,"GL",0,1,.01)', ''),
@@ -74,7 +74,7 @@ class TestWP(unittest.TestCase):
         ('^DD(9999907.02,0,"DT")', '3120720'),
         ('^DD(9999907.02,0,"NM","wp2")', ''),
         ('^DD(9999907.02,0,"UP")', '9999907'),
-        ('^DD(9999907.02,.01,0)', 'wp2^WL^^0;1^Q'),
+        ('^DD(9999907.02,.01,0)', 'wp2^WL^^0;1^Q'),  # word-wrap
         ('^DD(9999907.02,.01,"DT")', '3120720'),
         ('^DD(9999907.02,"B","wp2",.01)', ''),
         ('^DD(9999907.02,"GL",0,1,.01)', ''),
@@ -114,6 +114,8 @@ class TestWP(unittest.TestCase):
     def tearDown(self):
         # destroy the file
         self._cleanupFile()
+        if transaction.in_transaction:
+            transaction.rollback()
 
     def test_read(self):
         """
@@ -125,24 +127,24 @@ class TestWP(unittest.TestCase):
         key, rowid = cursor.next()
         rec = pytest5.get(rowid)
 
-        self.assertEqual(rec.WP1, ["This is text entered via the line editor.",
+        self.assertEqual(rec.WP1, '\n'.join(["This is text entered via the line editor.",
             "This is another line.",
             "This is a long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, l",
             "ong, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, ",
             "long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long,",
-            " long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long line"])
+            " long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long line"]))
 
         pytest5 = self.dbs.get_file("PYTEST5", internal=False)
         cursor = pytest5.traverser("B", "e")
         key, rowid = cursor.next()
         rec = pytest5.get(rowid)
 
-        self.assertEqual(rec.WP1, ["This is text entered via the line editor.",
+        self.assertEqual(rec.WP1, '\n'.join(["This is text entered via the line editor.",
             "This is another line.",
             "This is a long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, l",
             "ong, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, ",
             "long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long,",
-            " long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long line"])
+            " long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long line"]))
 
     def test_write(self):
         """
@@ -155,8 +157,8 @@ class TestWP(unittest.TestCase):
         transaction.begin()
         rec = pytest5.new()
         rec.NAME = "Insert Internal"
-        rec.WP1 = [u"line 1", u"line 2", u"line 3"]
-        rec.WP2 = [u"2 line 1", u"2 line 2", u"2 line 3"]
+        rec.WP1 = '\n'.join([u"line 1", u"line 2", u"line 3"])
+        rec.WP2 = '\n'.join([u"2 line 1", u"2 line 2", u"2 line 3"])
         transaction.commit()
 
         cursor = pytest5.traverser("B", "Insert Internal")
@@ -164,8 +166,8 @@ class TestWP(unittest.TestCase):
         rec = pytest5.get(rowid)
         self.assertEqual(str(rec.NAME), "Insert Internal")
 
-        self.assertEqual(rec.WP1, [u"line 1", u"line 2", u"line 3"])
-        self.assertEqual(rec.WP2, [u"2 line 1", u"2 line 2", u"2 line 3"])
+        self.assertEqual(rec.WP1, '\n'.join([u"line 1", u"line 2", u"line 3"]))
+        self.assertEqual(rec.WP2, '\n'.join([u"2 line 1", u"2 line 2", u"2 line 3"]))
 
     def test_indexing(self):
         """

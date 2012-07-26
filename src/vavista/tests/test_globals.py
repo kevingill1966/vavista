@@ -25,7 +25,6 @@ class TestGlobals(unittest.TestCase):
         self.assertEqual("TESTGLOBALS" in keys, 1)
 
     def test_serialise(self):
-        #import pdb; pdb.set_trace()
         source = Globals["^DIC"]["999900"]
         ser = source.serialise(1)
         # TODO: deserialise and compare

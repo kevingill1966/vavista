@@ -93,6 +93,8 @@ class TestSets(unittest.TestCase):
     def tearDown(self):
         # destroy the file
         self._cleanupFile()
+        if transaction.in_transaction:
+            transaction.abort()
 
     def test_read(self):
         """

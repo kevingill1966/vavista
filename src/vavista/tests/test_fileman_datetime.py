@@ -114,6 +114,8 @@ class TestDatetime(unittest.TestCase):
     def tearDown(self):
         # destroy the file
         self._cleanupFile()
+        if transaction.in_transaction:
+            transaction.abort()
 
     def test_read(self):
         """
@@ -146,6 +148,7 @@ class TestDatetime(unittest.TestCase):
             Check both internal and external formats.
         """
         int_pytest2 = self.dbs.get_file("PYTEST2")
+        transaction.begin()
         record = int_pytest2.new()
         record.NAME = 'Test Internal Dates'
         record.DATE1 = datetime.date(2012,1,2)

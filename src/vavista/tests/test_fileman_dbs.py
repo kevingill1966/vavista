@@ -11,7 +11,8 @@ class TestFileman(unittest.TestCase):
         self.dbs = connect("0", "")
 
     def tearDown(self):
-        pass
+        if transaction.in_transaction:
+            transaction.abort()
 
     def test_fileid(self):
         file = self.dbs.get_file("FILE")
@@ -43,6 +44,7 @@ class TestFileman(unittest.TestCase):
     def test_insert(self):
         # Create a new record - write it to the database
         kevin1 = self.dbs.get_file("KEVIN1")
+        transaction.begin()
         record = kevin1.new()
         record.NAME = 'hello there from unit test'
         transaction.commit()
@@ -54,6 +56,7 @@ class TestFileman(unittest.TestCase):
         self.assertEqual(str(copy.NAME), 'hello there from unit test')
 
         # update the record and verify that the updates worked.
+        transaction.begin()
         record.NAME = 'hello there from unit test2'
         transaction.commit()
         copy = kevin1.get(rowid)
@@ -62,6 +65,7 @@ class TestFileman(unittest.TestCase):
     def test_insert_external(self):
         # Create a new record - write it to the database
         kevin1 = self.dbs.get_file("KEVIN1", internal=False)
+        transaction.begin()
         record = kevin1.new()
         record.NAME = 'hello there from unit test'
         transaction.commit()
@@ -73,6 +77,7 @@ class TestFileman(unittest.TestCase):
         self.assertEqual(str(copy.NAME), 'hello there from unit test')
 
         # update the record and verify that the updates worked.
+        transaction.begin()
         record.NAME = 'hello there from unit test2'
         transaction.commit()
         copy = kevin1.get(rowid)
