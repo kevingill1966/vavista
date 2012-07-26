@@ -13,29 +13,45 @@ for file 999900
 
 Type Spec : all fields are optional.
 
-    [*]         - the field is screened
-    [I]         - something to do with labs - dont know what (TODO)
-    [M]         - I see this on multiple entry subfiles - (TODO)
+    From programmers manuall 14.9.2
+
+    [*]         - If there is a screen associated with a pointer or set of codes data type.
+    [A]         - For multiples, a user entering a new subentry is not Asked for verification.
+    [I]         - Data is uneditable
+    [M]         - For Multiples, after selecting or adding a subentry, the user is asked for another subentry.
     [R]         - Mandatory
-    [P|D|N|F|S|C|V|K]
+    [P|D|N|F|S|BC|C|Cm|V|K]
                 - Field Type:
                     P = pointer to a file
                     D = Datetime
                     N = Numeric
                     F = Text
-                    S = Set
+                    S = Set of Codes
                     C = Computed
-                    V = VPointer (more data held in fields)
+                    Cm = Computed Multiline
+                    BC = Boolean Computed
+                    DC = Date Computed
+                    V = Variable Pointer (more data held in fields)
                     K = Mumps Code
+                    W = The data is Word-processing.
+                    WL = The Word-processing data is normally printed in Line mode (i.e., without word wrap).
                     missing = either WP field or subfile
     [nnn]       - Id of file pointed to or subfile id
     [P]         - if reference is multiple, a subfile is created to 
                   manage the references. Subfile spec describes relationship with real file.
-    [Jn,m]      - number spec, n = field length, m = digits after decimal point
-    [']         - Laygo set to NO
-    [X]         - The type spec is not editable
-    [O]         - (TODO)
-    [a]         - audit
+    [Pn]        - The data is a Pointer reference to file "n".
+    [Pn']       - LAYGO to the Pointed-to file is not allowed.
+    [Jn]        - number spec, n = print length
+    [Jn,d]      - number spec, n = print length, d = digits after decimal point
+    [X]         - The type spec is not editable. Editing is not allowed under the Modify File Attributes
+                    option [DIMODIFY] because INPUT transform has been modified by the Input Transform
+                    (Syntax) option [DIITRAN] the Utility Functions menu [DIUTILITY].
+    [O]         - The field has an OUTPUT transform.
+    [a]         - The field has been marked for auditing all the time.
+    [e]         - The auditing is only on edit or delete.
+    [x]         - Word-processing text that contains the vertical bar "|" will be displayed exactly as they
+                    stored, (i.e., no window processing will take place).
+
 """
 
 import datetime
@@ -289,6 +305,14 @@ class FieldSet(Field):
         return flags and flags[0] == 'S'
 
 class FieldWP(Field):
+    """
+        WP fields are stored with a max line length of 245 charachters. Longer lines
+        are split.
+
+        TODO: the flag to wrap or not is on the field level record of the subfile.
+        ('^DD(9999907.01,.01,0)', 'wp1^Wx^^0;1^Q'),  # no-wrap
+        ('^DD(9999907.02,.01,0)', 'wp2^WL^^0;1^Q'),  # word-wrap
+    """
     fmql_type = FT_WP
 
     @classmethod
@@ -302,6 +326,13 @@ class FieldWP(Field):
             return s0 == "0"
         return False
 
+    def init_type(self, fieldinfo):
+        " Extract the wrap specification "
+        super(FieldWP, self).init_type(fieldinfo)
+        fs = M.Globals["^DD"][fieldinfo[1]][".01"][0].value
+        self.wrapinfo = fs.split("^")[1]
+
+
     def pyfrom_internal(self, s):
         if s == "":
             return None
@@ -309,7 +340,7 @@ class FieldWP(Field):
         # data is stored on as sub-items on the main item.
         # the value s will contain a closed format global to the actual record.
         gl = M.Globals.from_closed_form(s)
-        return [v.decode('utf8') for (k,v) in gl.items() if k != 'I']
+        return '\n'.join([v.decode('utf8') for (k,v) in gl.items() if k != 'I'])
 
     def pyfrom_external(self, s):
         return self.pyfrom_internal(s)
@@ -318,11 +349,13 @@ class FieldWP(Field):
         if s is None:
             return []
         rv = []
-        for part in s:
+        for part in s.split('\n'):
             if type(part) == unicode:
-                rv.append(part.encode('utf8'))
+                part = part.encode('utf8')
             else:
-                rv.append(str(part))
+                pass
+            for off in range(0, len(part), 245):
+                rv.append(part[off:off+245])
         return rv
 
     def pyto_external(self, s):
