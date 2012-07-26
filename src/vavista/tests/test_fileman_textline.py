@@ -164,7 +164,8 @@ class TestTextline(unittest.TestCase):
 
         # I have to disable this because it does not work with the\
         # transaction management either.
-        return
+        assert 0, "test_traversal2 tests are disabled - they seem to corrupt something in GT.M"
+
         try:
             return self.test_traversal(False) # External Data
         except Exception, e:
