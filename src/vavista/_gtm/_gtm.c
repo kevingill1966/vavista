@@ -51,12 +51,6 @@ void save_input_mode(void) {
 
 static PyObject *GTMException;
 
-static PyObject *ErrNotInitialised(void) {
-    /* Simple helper function to ensure proper handling if call called out of order */
-    PyErr_SetString(GTMException, "_gtm interface is not initialised.");
-    return NULL;
-}
-
 /*--------------------------------------------------------------------------------*/
 /* INOUT is a marker class which flag a parameter as being output                 */
 
@@ -174,7 +168,7 @@ void mstop(void) {
 }
 
 static void *
-mstart() {
+mstart(void) {
     /* TODO: Should I check the lib-path? */
     if (!getenv("GTMCI")) {
         PyErr_SetString(GTMException, "GTMCI environment variable not set.");
@@ -383,6 +377,9 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
 static PyObject*
 GTM_tstart(PyObject *self, PyObject *noarg)
 {
+#if defined(GTMTX_AVAILABLE)
+    gtm_txstart();
+#else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
 
@@ -397,6 +394,7 @@ GTM_tstart(PyObject *self, PyObject *noarg)
         PyErr_SetString(GTMException, msgbuf);
         return NULL;
     }
+#endif
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -406,6 +404,15 @@ GTM_tstart(PyObject *self, PyObject *noarg)
 static PyObject*
 GTM_tcommit(PyObject *self, PyObject *noarg)
 {
+#if defined(GTMTX_AVAILABLE)
+    xc_status_t	status;
+    status = gtm_txcommit();
+    if (0 != status ) { 
+        sprintf(msgbuf, "GT.M Transaction Commit Failed: Error Code %d", status);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+#else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
 
@@ -420,6 +427,7 @@ GTM_tcommit(PyObject *self, PyObject *noarg)
         PyErr_SetString(GTMException, msgbuf);
         return NULL;
     }
+#endif
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -429,6 +437,9 @@ GTM_tcommit(PyObject *self, PyObject *noarg)
 static PyObject*
 GTM_trollback(PyObject *self, PyObject *noarg)
 {
+#if defined(GTMTX_AVAILABLE)
+    gtm_txrollback(0);
+#else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
 
@@ -443,6 +454,7 @@ GTM_trollback(PyObject *self, PyObject *noarg)
         PyErr_SetString(GTMException, msgbuf);
         return NULL;
     }
+#endif
 
     Py_INCREF(Py_None);
     return Py_None;

@@ -21,9 +21,54 @@ import vavista._gtm as _mumps
 
 INOUT=_mumps.INOUT
 mexec=_mumps.mexec
-tstart=_mumps.tstart
-tcommit=_mumps.tcommit
-trollback=_mumps.trollback
+
+# I am leaving in debugging stuff for now as it is very difficult to diagnose 
+# txn issues. Set this flag to True to enable debugging
+debugging = False
+
+_intxn = False
+class MTxnException(Exception):
+    pass
+
+def tstart():
+    global _intxn
+    if _intxn == True:
+        raise MTxnException("Already in a transaction")
+    try:
+        _mumps.tstart()
+    except Exception, e:
+        if debugging:
+            print "TSTART Raised Exception"
+            print e
+            import pdb; pdb.set_trace()
+        raise
+    _intxn = True
+
+def tcommit():
+    global _intxn
+    if _intxn == False:
+        raise MTxnException("Not in a transaction")
+    try:
+        _mumps.tcommit()
+        _intxn = False
+    except Exception, e:
+        if debugging:
+            import pdb; pdb.set_trace()
+        _mumps.trollback()
+        _intxn = False
+        raise
+
+def trollback():
+    global _intxn
+    if _intxn == False:
+        raise MTxnException("Not in a transaction")
+    try:
+        _mumps.trollback()
+    except Exception, e:
+        if debugging:
+            import pdb; pdb.set_trace()
+        raise
+    _intxn = False
 
 class REF(object):
     def __init__(self, value):
