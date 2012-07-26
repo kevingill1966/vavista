@@ -195,6 +195,8 @@ class Global(object):
             except:
                 logger.exception("Global.set_value (%s) Unicode decode error on [%s]", s0, s1)
                 raise
+        else:
+            s1 = str(s1)
 
         mexec("set @s0=s1", s0, s1)
 
