@@ -119,7 +119,7 @@ class TestWP(unittest.TestCase):
         # destroy the file
         self._cleanupFile()
         if transaction.in_transaction:
-            transaction.rollback()
+            transaction.abort()
 
     def test_read(self):
         """
