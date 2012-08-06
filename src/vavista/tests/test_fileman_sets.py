@@ -66,10 +66,12 @@ class TestSets(unittest.TestCase):
 
     def _createFile(self):
         # This creates a file
+        transaction.begin()
         Globals.deserialise(self.DIC)
         Globals.deserialise(self.DD)
         Globals.deserialise(self.DIZ)
         Globals.deserialise(self.IX)
+        transaction.commit()
 
         # Are indices setup
         dd = self.dbs.dd("PYTEST4")
@@ -79,10 +81,12 @@ class TestSets(unittest.TestCase):
 
     def _cleanupFile(self):
         # This deletes a file
+        transaction.begin()
         Globals["^DIC"]["9999906"].kill()
         Globals["^DIC"]["B"]["PYTEST4"].kill()
         Globals["^DD"]["9999906"].kill()
         Globals["^DIZ"]["9999906"].kill()
+        transaction.commit()
 
     def setUp(self):
         self.dbs = connect("0", "")

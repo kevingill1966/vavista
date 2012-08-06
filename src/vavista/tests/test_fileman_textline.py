@@ -92,6 +92,7 @@ class TestTextline(unittest.TestCase):
     ]
 
     def _cleanupFile(self):
+        transaction.begin()
         Globals["^DIC"]["9999903"].kill()
         Globals["^DIC"]['B']["PYTEST1"].kill()
         Globals["^DD"]["9999903"].kill()
@@ -102,13 +103,16 @@ class TestTextline(unittest.TestCase):
         Globals["^DD"]["IX"]["AC"]["9999903"].kill()
         Globals["^DD"]["IX"]["IX"]["D"]["116"].kill()
         Globals["^DD"]["IX"]["F"]["9999903"].kill()
+        transaction.commit()
 
     def _createFile(self):
         # This creates a file
+        transaction.begin()
         Globals.deserialise(self.DIC)
         Globals.deserialise(self.DD)
         Globals.deserialise(self.DIZ)
         Globals.deserialise(self.IX)
+        transaction.commit()
 
         # Are indices setup
         dd = self.dbs.dd("PYTEST1")

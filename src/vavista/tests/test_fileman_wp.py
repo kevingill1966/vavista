@@ -85,10 +85,12 @@ class TestWP(unittest.TestCase):
 
     def _createFile(self):
         # This creates a file
+        transaction.begin()
         Globals.deserialise(self.DIC)
         Globals.deserialise(self.DD)
         Globals.deserialise(self.DIZ)
         Globals.deserialise(self.IX)
+        transaction.commit()
 
         # Are indices setup
         dd = self.dbs.dd("PYTEST5")
@@ -98,12 +100,14 @@ class TestWP(unittest.TestCase):
 
     def _cleanupFile(self):
         # This deletes a file
+        transaction.begin()
         Globals["^DIC"]["9999907"].kill()
         Globals["^DIC"]["B"]["PYTEST5"].kill()
         Globals["^DD"]["9999907"].kill()
         Globals["^DIZ"]["9999907"].kill()
         Globals["^DD"]["9999907.01"].kill()
         Globals["^DD"]["9999907.02"].kill()
+        transaction.commit()
 
     def setUp(self):
         self.dbs = connect("0", "")

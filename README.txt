@@ -19,3 +19,12 @@ To build docs:
     python setup.py build_sphinx
 
 
+Issues
+------
+
+I am having trouble with two versions of GT.M on the same system. I need to
+install the GT.M componets into the GT.M environment. Look at the axiomware install
+again.
+
+A conflict resolution mechanism is needed in the GT.M implementation before
+I can overlay transactions on the mumps code.

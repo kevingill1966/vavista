@@ -17,7 +17,14 @@ if gtmroutines.find("vavista/src/_gtm") == -1:
     os.putenv("gtmroutines", gtmroutines)
 
 # At some later stage will try cache and gtm
-import vavista._gtm as _mumps
+
+# I have to import the gtm library using a shared library on a path with
+# the version information. This allows me to connect to multiple versions
+# of GT.M on the same server.
+gtm_dist = os.getenv("gtm_dist")
+gtm_ver = os.path.basename(gtm_dist).replace(".", "_").replace("-", "_")
+vavista = __import__("vavista.gtm%s._gtm" % gtm_ver)
+_mumps = getattr(vavista, "gtm"+gtm_ver)._gtm
 
 INOUT=_mumps.INOUT
 mexec=_mumps.mexec
@@ -30,12 +37,13 @@ _intxn = False
 class MTxnException(Exception):
     pass
 
-def tstart():
+def tstart(label=None):
     global _intxn
+    txnid = None
     if _intxn == True:
         raise MTxnException("Already in a transaction")
     try:
-        _mumps.tstart()
+        txnid = _mumps.tstart(label)
     except Exception, e:
         if debugging:
             print "TSTART Raised Exception"
@@ -43,6 +51,7 @@ def tstart():
             import pdb; pdb.set_trace()
         raise
     _intxn = True
+    return txnid
 
 def tcommit():
     global _intxn

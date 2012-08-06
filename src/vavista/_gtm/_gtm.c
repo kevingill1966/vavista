@@ -375,10 +375,18 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
 
 
 static PyObject*
-GTM_tstart(PyObject *self, PyObject *noarg)
+GTM_tstart(PyObject *self, PyObject *args)
 {
 #if defined(GTMTX_AVAILABLE)
-    gtm_txstart();
+    char *s;
+    long lRv;
+
+    if (!PyArg_ParseTuple(args, "s", &s)) {
+            s = NULL;
+    }
+    lRv = gtm_txstart(s);
+    return Py_BuildValue("l", lRv);
+
 #else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
@@ -462,7 +470,7 @@ GTM_trollback(PyObject *self, PyObject *noarg)
 
 static PyMethodDef GTMMethods[] = {
     {"mexec",   GTM_mexec,   METH_VARARGS, "Dynamically Invoke a Mumps Command."},
-    {"tstart",   GTM_tstart,   METH_NOARGS, "Transaction begin."},
+    {"tstart",   GTM_tstart,   METH_VARARGS, "Transaction begin."},
     {"tcommit",   GTM_tcommit,   METH_NOARGS, "Transaction commit."},
     {"trollback",   GTM_trollback,   METH_NOARGS, "Transaction rollback."},
     {NULL,     NULL,         0,            NULL}        /* Sentinel */

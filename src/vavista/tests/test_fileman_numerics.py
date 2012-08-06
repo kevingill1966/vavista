@@ -76,17 +76,21 @@ class TestNumerics(unittest.TestCase):
     ]
 
     def _cleanupFile(self):
+        transaction.begin()
         Globals["^DIC"]["9999905"].kill()
         Globals["^DIC"]['B']["PYTEST3"].kill()
         Globals["^DD"]["9999905"].kill()
         Globals["^DIZ"]["9999905"].kill()
+        transaction.commit()
 
     def _createFile(self):
         # This creates a file
+        transaction.begin()
         Globals.deserialise(self.DIC)
         Globals.deserialise(self.DD)
         Globals.deserialise(self.DIZ)
         #Globals.deserialise(self.IX)
+        transaction.commit()
 
         # Are indices setup
         dd = self.dbs.dd("PYTEST3")

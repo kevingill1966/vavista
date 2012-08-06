@@ -1,5 +1,6 @@
 
 import os, sys
+import os.path
 
 from distutils.core import setup
 from distutils.command.install_data import install_data
@@ -11,12 +12,12 @@ MINOR_VERSION = '0a1'
 ext = []
 data_files=[]
 
+gtm_dist = os.getenv("gtm_dist")
+gtm_ver = os.path.basename(gtm_dist).replace(".", "_").replace("-", "_")
+
 class compile_m(install_data):
     """
-        Compile the mumps source file
-
-        I need a post-install step to compile the .m file. Otherwise
-        the first time this package is run, it must be run as root.
+        Install the mumps source file
 
         Don't fail to install if this does not compile. Other parts of 
         the package, such as RPCs will still work.
@@ -24,22 +25,15 @@ class compile_m(install_data):
     def run(self):
         install_data.run(self)
         cwd = os.getcwd()
-        try:
-            source_path = self.install_base + "/vavista/_gtm/"
-            os.chdir(source_path)
-            cmd = "mumps %s" % "vavistagtm.m"
-            print "Compiling GT.M source: ", cmd
-            rv = os.system(cmd)
-            if rv != 0:
-                sys.stderr.write("""
+        if not gtm_dist:
+            sys.stderr.write("""
 ******************************************************************************
-Warning: could not compile GT.M mumps file (vavistagtm.m).
+Warning: could not install GT.M mumps file (vavistagtm.m).
 ----------------------------------------------------------
-If you are using GT.M, this file needs to be compiled. 
-Check your environment is setup for GT.M and that you can compile a mumps
-file, using the command:
+If you are using GT.M, this file needs to be copied to your $gtm_dist folder. 
+Check your environment is setup for GT.M.
     
-    mumps filename
+    $ echo $gtm_dist
 
 If you are running this command under sudo, you may have to set-up the GT.M
 environment for root.
@@ -50,16 +44,39 @@ I use:
 
 ******************************************************************************
 """)
+            return
+        try:
+            # Copy the source files to the $gtm_dist folder
+            source_path = self.install_base + "/vavista/_gtm/"
+            os.chdir(source_path)
+            cmd = "mumps %s" % "vavistagtm.m"
+            print "Compiling GT.M source: ", cmd
+            rv = os.system(cmd)
+            if rv == 0:
+                rv = os.system('mv vavistagtm.m vavistagtm.o "%s"' % gtm_dist)
+            if rv != 0:
+                sys.stderr.write("""
+******************************************************************************
+Warning: could not copy GT.M mumps file (vavistagtm.m).
+----------------------------------------------------------
+
+The mumps file could not be copied to the GT.M distribution folder.
+Check that the folder exists and that you have write permissions to that folder.
+
+$gtm_dist = "%s"
+
+******************************************************************************
+""") % gtm_dist
         finally:
             os.chdir(cwd)
 
-_gtm = Extension('vavista._gtm',
+_gtm = Extension('vavista.gtm%s._gtm' % gtm_ver,
     define_macros = [('MAJOR_VERSION', MAJOR_VERSION),
                      ('MINOR_VERSION', MINOR_VERSION)],
     include_dirs = ['/usr/include/python2.7',
                     '/usr/local/gtm'],
     libraries = ['gtmshr','python2.7'],
-    library_dirs = ['/usr/local/gtm'],
+    library_dirs = [gtm_dist],
     sources = ['src/vavista/_gtm/_gtm.c'])
 
 ext.append(_gtm)

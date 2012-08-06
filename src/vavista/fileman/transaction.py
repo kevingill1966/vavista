@@ -44,13 +44,14 @@ from vavista import M
 class TransactionManager:
     tracking = []
     in_transaction = False
+    transaction_id = None
 
     # Hooks for application logic
     on_before_begin, on_after_begin = [], []
     on_before_commit, on_after_commit = [], []
     on_before_abort, on_after_abort = [], []
 
-    def begin(self):
+    def begin(self, label="python"):
         "It is not necessary to call this"
         if self.in_transaction:
             return # called implicitly
@@ -59,7 +60,7 @@ class TransactionManager:
 
         assert len(self.tracking) == 0, "There have been some changes before the begin call"
 
-        M.tstart()
+        self.transaction_id = M.tstart(label)
         self.in_transaction = True
 
         for fn in self.on_after_begin: fn() # hooks
