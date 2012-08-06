@@ -170,13 +170,13 @@ void mstop(void) {
 static void *
 mstart(void) {
     /* TODO: Should I check the lib-path? */
-    if (!getenv("GTMCI")) {
-        PyErr_SetString(GTMException, "GTMCI environment variable not set.");
-        return NULL;
-    }
     if (gInitialised) {
         status = 0;
     } else {
+        if (!getenv("GTMCI")) {
+            PyErr_SetString(GTMException, "GTMCI environment variable not set.");
+            return NULL;
+        }
         save_input_mode();
         CALLGTM(gtm_init());
         gInitialised = 1;
@@ -381,6 +381,8 @@ GTM_tstart(PyObject *self, PyObject *args)
     char *s;
     long lRv;
 
+    if (mstart() == NULL) return NULL;
+
     if (!PyArg_ParseTuple(args, "s", &s)) {
             s = NULL;
     }
@@ -390,6 +392,8 @@ GTM_tstart(PyObject *self, PyObject *args)
 #else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
+
+    if (mstart() == NULL) return NULL;
 
     cmd_s.address = "tstart";
     cmd_s.length = sizeof(cmd_s.address)-1;
@@ -414,6 +418,9 @@ GTM_tcommit(PyObject *self, PyObject *noarg)
 {
 #if defined(GTMTX_AVAILABLE)
     xc_status_t	status;
+
+    if (mstart() == NULL) return NULL;
+
     status = gtm_txcommit();
     if (0 != status ) { 
         sprintf(msgbuf, "GT.M Transaction Commit Failed: Error Code %d", status);
@@ -423,6 +430,8 @@ GTM_tcommit(PyObject *self, PyObject *noarg)
 #else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
+
+    if (mstart() == NULL) return NULL;
 
     cmd_s.address = "tcommit";
     cmd_s.length = sizeof(cmd_s.address)-1;
@@ -446,10 +455,14 @@ static PyObject*
 GTM_trollback(PyObject *self, PyObject *noarg)
 {
 #if defined(GTMTX_AVAILABLE)
+    if (mstart() == NULL) return NULL;
+
     gtm_txrollback(0);
 #else
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
+
+    if (mstart() == NULL) return NULL;
 
     cmd_s.address = "trollback";
     cmd_s.length = sizeof(cmd_s.address)-1;
