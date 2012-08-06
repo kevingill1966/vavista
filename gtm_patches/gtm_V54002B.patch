@@ -66,33 +66,54 @@ index 4dfc1de..018cfc2 100644
 +gtm_txrollback
 diff --git sr_unix/gtmtx.c sr_unix/gtmtx.c
 new file mode 100644
-index 0000000..a8af6b4
+index 0000000..12406bb
 --- /dev/null
 +++ sr_unix/gtmtx.c
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,75 @@
 +/*
 + * Exported transaction handling function
 + * Experiment in managing transactions in Python code.
 + */
 +
 +#include <stdio.h>
++#include <string.h>
 +
 +#include <mdef.h>      /* MV_STR, FALSE */
 +#include <tp_frame.h>   /* NORMAL_MCODE_TSTART */
 +#include <cdb_sc.h>     /* defines cdb enum returned from t_commit */
 +#include <op.h>         /* declares op_trollback / op_tstart */
 +#include <op_tcommit.h> /* declares op_tcommit */
++#include <gdsroot.h>    /* defines trans_num */
 +
-+# include "gtmxc_types.h"
++#include "gtmxc_types.h" 
 +
-+void
-+gtm_txstart(void)
++GBLREF  trans_num   local_tn;
++
++unsigned long
++gtm_txstart(char *idstr)
 +{
++    /*
++     * Takes NULL or a string of up to eight characters as the id 
++     * of the transaction, which is logged to the transaction
++     * log.
++     */
 +    mval ts_mv;
 +    ts_mv.mvtype = MV_STR;
-+    ts_mv.str.len = 0;
-+    ts_mv.str.addr = NULL;
-+    op_tstart(IMPLICIT_TSTART, TRUE, &ts_mv, -1); /* -1 = prevent restart */
++    if (idstr) {
++        ts_mv.str.len = strlen(idstr);
++        ts_mv.str.addr = idstr;
++    }
++    else {
++        ts_mv.str.len = 0;
++        ts_mv.str.addr = NULL;
++    }
++    /* the start is type 0, explicit */
++    op_tstart(0, TRUE, &ts_mv, -1); /* -1 = prevent restart */
++
++    /* This is only part of the transaction number.
++     * There must be a pid part and a time part
++     */
++    return (unsigned long)local_tn;
 +}
 +
 +
@@ -125,7 +146,7 @@ index 0000000..a8af6b4
 +    op_trollback(tlevel);
 +}
 diff --git sr_unix/gtmxc_types.h sr_unix/gtmxc_types.h
-index 81f83b2..4048e47 100644
+index 81f83b2..9c811ba 100644
 --- sr_unix/gtmxc_types.h
 +++ sr_unix/gtmxc_types.h
 @@ -84,4 +84,13 @@ void		gtm_xcfileid_free(xc_fileid_ptr_t fileid);
@@ -137,7 +158,7 @@ index 81f83b2..4048e47 100644
 + * a program using the Callin interface can manage transactions.
 + */
 +#define GTMTX_AVAILABLE 1
-+void gtm_txstart(void);
++unsigned long gtm_txstart(char *);
 +xc_status_t gtm_txcommit(void);
 +void gtm_txrollback(xc_int_t);
 +
