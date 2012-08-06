@@ -127,14 +127,12 @@ class TestTextline(unittest.TestCase):
 
     def tearDown(self):
         # destroy the file
-        self._cleanupFile()
         if transaction.in_transaction:
             transaction.abort()
+        self._cleanupFile()
 
     def test_readwrite(self):
-        dd = self.dbs.dd("PYTEST1")
-        self.assertEqual(dd.fileid, "9999903")
-
+        transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1", internal=False)
         record = pytest1.new()
         record.NAME = 'Test Insert'
@@ -181,14 +179,13 @@ class TestTextline(unittest.TestCase):
             Insert multiple items. Verify that traversal back and 
             forward works.
         """
-        pytest1 = self.dbs.get_file("PYTEST1", internal=internal)
         transaction.begin()
+        pytest1 = self.dbs.get_file("PYTEST1", internal=internal)
         for i in range(10):
             record = pytest1.new()
             record.NAME = 'ROW%d' % i
             record.TEXTLINE_ONE = "%d: LINE 1" % i
             record.TEXTLINE2 = "%d: LINE 2" % i
-
         transaction.commit()
 
         # Index B is a default Key Field on the NAME field
@@ -275,11 +272,14 @@ class TestTextline(unittest.TestCase):
             set to a null value. However, if a value is never put into
             it, it is not validated.
         """
+        transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1", internal=False)
         record = pytest1.new()
         record.NAME = 'ROW1'
         record.TEXTLINE_ONE = "LINE 1"
+        transaction.commit()
 
+        transaction.begin()
         exception = False
         try:
             pytest1 = self.dbs.get_file("PYTEST1", internal=False)
@@ -290,7 +290,9 @@ class TestTextline(unittest.TestCase):
         except:
             exception = True
         self.assertEqual(exception, True)
+        transaction.abort()
 
+        transaction.begin()
         exception = False
         try:
             pytest1 = self.dbs.get_file("PYTEST1", internal=False)
@@ -301,7 +303,9 @@ class TestTextline(unittest.TestCase):
         except:
             exception = True
         self.assertEqual(exception, True)
+        transaction.abort()
 
+        transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1", internal=True)
         record = pytest1.new()
         record.NAME = 'ROW4'
