@@ -5,7 +5,7 @@
 """
 
 from vavista import M
-from vavista.fileman.dbsdd import FT_WP
+from vavista.fileman.dbsdd import FT_WP, DD
 from shared import FilemanError
 from transaction import transaction_manager as transaction
 
@@ -466,3 +466,27 @@ class DBSRow(object):
                     % (self._dd.filename, self._dd.fileid, self._rowid))
 
 
+    def traverse(self, fieldname):
+        """
+            For a pointer field, traverse to the related data
+
+            You can only follow an internal pointer as far as I can see.
+        """
+        from vavista.fileman.dbsfile import DBSFile
+
+        fieldid = self._dd.attrs.get(fieldname, None)
+        if fieldid is None:
+            raise AttributeError(fieldname)
+
+        field_dd = self._dd.fields[fieldid]
+        dd = DD(field_dd.foreign_fileid)
+        ffile = DBSFile(dd, internal=self._internal)
+
+        if self._internal:
+            try:
+                foreignkeyval = str(self._data[fieldid]['I'].value)
+            except:
+                raise FilemanError("Value Not found %s" % fieldid)
+            return ffile.get(foreignkeyval)
+        else:
+            raise FilemanError("""You must be using "Internal" access to traverse to a related file""")

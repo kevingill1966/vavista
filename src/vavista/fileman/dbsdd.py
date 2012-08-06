@@ -371,10 +371,19 @@ class FieldComputed(Field):
 
 class FieldPointer(Field):
     fmql_type = FT_POINTER
+    laygo = True
 
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'P'
+
+    def init_type(self, fieldinfo):
+        " Extract the remote file id "
+        super(FieldPointer, self).init_type(fieldinfo)
+        self.foreign_fileid = fieldinfo[1][1:]
+        if self.foreign_fileid[-1] == "'":
+            self.laygo = False
+            self.foreign_fileid = self.foreign_fileid[:-1]
 
 class FieldVPointer(Field):
     fmql_type = FT_VPOINTER
@@ -428,6 +437,12 @@ class _DD(object):
     attrs = None
 
     def __init__(self, filename):
+        # the filename cound be a file number - if it starts with a a numeric
+        if filename[0] in "0123456789":
+            fileid = filename
+            dic_header = M.Globals["^DIC"][fileid]["0"].value
+            if dic_header is not None:
+                filename = dic_header.split("^")[0]
         self.filename = filename
 
     def _clean_label(self, s):
@@ -444,7 +459,7 @@ class _DD(object):
             e.g. FILE = 1 - result is a string.
         """
         if self._fileid is None:
-            rv = M.mexec('''set s1=$order(^DIC("B",s0,0))''', self.filename, M.INOUT(""))[0]
+            rv = M.mexec('''set s1=$order(^DIC("B",s0,0))''', str(self.filename), M.INOUT(""))[0]
             if rv != '':
                 self._fileid = rv
         return self._fileid
@@ -578,6 +593,8 @@ def DD(filename, cache={}):
         Simple mechanism to cache DD objects.
     """
     if filename not in cache:
-        cache[filename] = _DD(filename)
+        file_dd = _DD(filename)
+        cache[file_dd.filename] = _DD(filename)
+        filename = file_dd.filename
     return cache[filename]
     
