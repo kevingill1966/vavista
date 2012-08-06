@@ -103,19 +103,23 @@ class TransactionManager:
 
     def commit(self):
         try:
-            for fn in self.on_before_commit: fn() # hooks
+            try:
+                for fn in self.on_before_commit: fn() # hooks
 
-            for dbrow in self.tracking:
-                row_handler = getattr(dbrow, "_on_before_commit", None)
-                if row_handler:
-                    row_handler()
-            for dbrow in self.tracking:
-                dbrow._on_commit()
+                for dbrow in self.tracking:
+                    row_handler = getattr(dbrow, "_on_before_commit", None)
+                    if row_handler:
+                        row_handler()
+                for dbrow in self.tracking:
+                    dbrow._on_commit()
 
-            for dbrow in self.tracking:
-                row_handler = getattr(dbrow, "_on_after_commit", None)
-                if row_handler:
-                    row_handler()
+                for dbrow in self.tracking:
+                    row_handler = getattr(dbrow, "_on_after_commit", None)
+                    if row_handler:
+                        row_handler()
+            except Exception, e:
+                M.trollback()
+                raise
 
             if self.in_transaction:
                 M.tcommit()
