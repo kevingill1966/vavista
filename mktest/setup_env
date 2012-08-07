@@ -4,7 +4,7 @@
 if [ "$gtmver" = "" ]
 then
     echo "Please run gtmprofile before running this script"
-    exit 1
+    return
 fi
 
 export gitroot="$HOME/VistA-FOIA"
@@ -16,7 +16,7 @@ if [ ! -d "$gitroot" ]
 then
     echo "git copy of VistA source not found, please clone it using this command"
     echo "git clone git://code.osehra.org/VistA-FOIA.git $gitroot"
-    exit 1
+    return
 fi
 
 # the file manipulation routines which hack the files to GTM format, cannot
