@@ -301,6 +301,10 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(exception, True)
         transaction.abort()
 
+        # There seems to be an error in flushing the GT.M global data.
+        # If I print out the file header globals, the test succeeds.
+        # This probably relates to the transaction abort above.
+        # print "4", Globals["^DIZ"]["9999903"][0]
         transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1", internal=True)
         record = pytest1.new()
