@@ -2,6 +2,11 @@
 # For the pointer to a file value, we should see a conspicuous
 # difference between internal and external formats
 
+# TODO: How to validate that the referenced value exists
+# TODO: the target file header (DD) has a field (PT) that
+#       indicates that an inbound pointer exists. Can this
+#       be used to prevent deletes?
+
 import unittest
 
 from vavista.fileman import connect, transaction, FilemanError
