@@ -131,16 +131,14 @@ class TestDatetime(unittest.TestCase):
 
         pytest2 = self.dbs.get_file("PYTEST2", internal=True)
         cursor = pytest2.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest2.get(rowid)
+        rec = cursor.next()
         self.assertEquals(rec.DATE1, datetime.date(2012,7,20))
         self.assertEquals(rec.DATETIME1, datetime.datetime(2012,7,20,11,1,2))
         self.assertEquals(rec.DATETIME2, datetime.datetime(2012,7,20,11,1,2))
 
         pytest2 = self.dbs.get_file("PYTEST2", internal=False)
         cursor = pytest2.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest2.get(rowid)
+        rec = cursor.next()
         self.assertEquals(rec.DATE1, datetime.date(2012,7,20))
         self.assertEquals(rec.DATETIME1, datetime.datetime(2012,7,20,11,1,2))
         self.assertEquals(rec.DATETIME2, datetime.datetime(2012,7,20,11,1,2))
@@ -161,8 +159,7 @@ class TestDatetime(unittest.TestCase):
         transaction.commit()
 
         cursor = int_pytest2.traverser("B", "Test Internal Dates")
-        key, rowid = cursor.next()
-        rec = int_pytest2.get(rowid)
+        rec = cursor.next()
         self.assertEqual(str(rec.NAME), "Test Internal Dates")
         self.assertEquals(rec.DATE1, datetime.date(2012,1,2))
         self.assertEquals(rec.DATETIME1, datetime.datetime(2012,1,2,3,4,5))

@@ -107,8 +107,7 @@ class TestSets(unittest.TestCase):
         """
         pytest4 = self.dbs.get_file("PYTEST4", internal=True)
         cursor = pytest4.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest4.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.GENDER, "M")
         self.assertEqual(rec.NUMBERS, "8")
@@ -116,8 +115,7 @@ class TestSets(unittest.TestCase):
 
         pytest4 = self.dbs.get_file("PYTEST4", internal=False)
         cursor = pytest4.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest4.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.GENDER, "MALE")
         self.assertEqual(rec.NUMBERS, "EIGHT")
@@ -134,8 +132,7 @@ class TestSets(unittest.TestCase):
         transaction.commit()
 
         cursor = pytest4.traverser("B", "Insert Internal")
-        key, rowid = cursor.next()
-        rec = pytest4.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.GENDER, "F")
         self.assertEqual(rec.NUMBERS, "4")
@@ -149,7 +146,7 @@ class TestSets(unittest.TestCase):
         except FilemanError, e:
             transaction.abort()
 
-        rec = pytest4.get(rowid)
+        rec = pytest4.get(rec._rowid)
         self.assertEqual(rec.GENDER, "F")
 
     def test_indexing(self):

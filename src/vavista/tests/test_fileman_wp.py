@@ -128,8 +128,7 @@ class TestWP(unittest.TestCase):
         """
         pytest5 = self.dbs.get_file("PYTEST5", internal=True)
         cursor = pytest5.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest5.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.WP1, '\n'.join(["This is text entered via the line editor.",
             "This is another line.",
@@ -140,8 +139,7 @@ class TestWP(unittest.TestCase):
 
         pytest5 = self.dbs.get_file("PYTEST5", internal=False)
         cursor = pytest5.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest5.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.WP1, '\n'.join(["This is text entered via the line editor.",
             "This is another line.",
@@ -166,8 +164,7 @@ class TestWP(unittest.TestCase):
         transaction.commit()
 
         cursor = pytest5.traverser("B", "Insert Internal")
-        key, rowid = cursor.next()
-        rec = pytest5.get(rowid)
+        rec = cursor.next()
         self.assertEqual(str(rec.NAME), "Insert Internal")
 
         self.assertEqual(rec.WP1, '\n'.join([u"line 1", u"line 2", u"line 3"]))

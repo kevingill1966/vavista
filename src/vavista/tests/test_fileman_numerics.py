@@ -117,8 +117,7 @@ class TestNumerics(unittest.TestCase):
         """
         pytest3 = self.dbs.get_file("PYTEST3", internal=True)
         cursor = pytest3.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest3.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.INT1, 10)
         self.assertEqual(rec.INT2, -10)
@@ -128,8 +127,7 @@ class TestNumerics(unittest.TestCase):
 
         pytest3 = self.dbs.get_file("PYTEST3", internal=False)
         cursor = pytest3.traverser("B", "e")
-        key, rowid = cursor.next()
-        rec = pytest3.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.INT1, 10)
         self.assertEqual(rec.INT2, -10)
@@ -150,8 +148,7 @@ class TestNumerics(unittest.TestCase):
         transaction.commit()
 
         cursor = pytest3.traverser("B", "Insert")
-        key, rowid = cursor.next()
-        rec = pytest3.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(rec.INT1, 11)
         self.assertEqual(rec.INT2, -11)

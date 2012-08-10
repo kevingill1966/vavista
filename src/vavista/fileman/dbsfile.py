@@ -11,7 +11,7 @@ from shared import FilemanError
 from dbsrow import DBSRow
 
 class IndexIterator:
-    def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True, from_rule=">=", to_rule="<"):
+    def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True, from_rule=">=", to_rule="<", raw=False, getter=None):
         """
             An iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -30,6 +30,8 @@ class IndexIterator:
         self.ascending = ascending
         self.from_rule = from_rule
         self.to_rule = to_rule
+        self.raw = raw
+        self.getter = getter
 
         if self.from_value != None and self.to_value != None:
             if self.ascending:
@@ -112,8 +114,9 @@ class IndexIterator:
                 lastrowid = None
                 continue
             self.lastrowid = lastrowid
-            return self.lastkey, self.lastrowid
-
+            if self.raw:
+                return self.lastkey, self.lastrowid
+            return self.getter(self.lastrowid)
 
 class DBSFile(object):
     """
@@ -144,7 +147,7 @@ class DBSFile(object):
         record._retrieve() # raises exception on failure
         return record
 
-    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None):
+    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False):
         """
             Return an iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -178,7 +181,7 @@ class DBSFile(object):
             else:
                 assert to_rule in (">", ">=", "=")
         gl_prefix = self.dd.m_open_form()
-        return IndexIterator(gl_prefix, index, from_value, to_value, ascending, from_rule, to_rule)
+        return IndexIterator(gl_prefix, index, from_value, to_value, ascending, from_rule, to_rule, raw, getter=self.get)
 
     def new(self):
         """

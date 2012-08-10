@@ -51,6 +51,7 @@ def dump(name, fhOut):
         fhOut.write("%s = [\n" % name)
         for f in value:
             fhOut.write("\t(%s, %s),\n" % (repr(f[0]), repr(f[1])))
+            fhOut.flush()
         fhOut.write("]\n\n")
 
     fhOut.write("""

@@ -143,10 +143,7 @@ class TestTextline(unittest.TestCase):
         # The low-level traverser, walks index "B", on NAME field
         # ('^DD(9999903,0,"IX","B",9999903,.01)', ''),
         cursor = pytest1.traverser("B", "Test")
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest1.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "Test Insert")
@@ -174,7 +171,7 @@ class TestTextline(unittest.TestCase):
 
         # Index B is a default Key Field on the NAME field
         # It is a "traditional" index
-        cursor = pytest1.traverser("B", "ROW4", "ROW8")
+        cursor = pytest1.traverser("B", "ROW4", "ROW8", raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][0], "ROW4")
@@ -182,7 +179,7 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[2][0], "ROW6")
         self.assertEqual(result[3][0], "ROW7")
 
-        cursor = pytest1.traverser("B", "ROW8", "ROW4", ascending=False)
+        cursor = pytest1.traverser("B", "ROW8", "ROW4", ascending=False, raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][0], "ROW8")
@@ -190,7 +187,7 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[2][0], "ROW6")
         self.assertEqual(result[3][0], "ROW5")
 
-        cursor = pytest1.traverser("B", "ROW4", "ROW8", to_rule="<=", from_rule=">=")
+        cursor = pytest1.traverser("B", "ROW4", "ROW8", to_rule="<=", from_rule=">=", raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 5)
         self.assertEqual(result[0][0], "ROW4")
@@ -199,7 +196,7 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[3][0], "ROW7")
         self.assertEqual(result[4][0], "ROW8")
 
-        cursor = pytest1.traverser("B", "ROW8", "ROW4", ascending=False, to_rule=">=", from_rule="<=")
+        cursor = pytest1.traverser("B", "ROW8", "ROW4", ascending=False, to_rule=">=", from_rule="<=", raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 5)
         self.assertEqual(result[0][0], "ROW8")
@@ -214,7 +211,7 @@ class TestTextline(unittest.TestCase):
         # If I just pass in "4" it searches wrongly, putting integers
         # before strings.
         # TODO: how to make numbers and strings collate properly
-        cursor = pytest1.traverser("C", "4:", "8:")
+        cursor = pytest1.traverser("C", "4:", "8:", raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][0], "4: LINE 1")
@@ -222,7 +219,7 @@ class TestTextline(unittest.TestCase):
         self.assertEqual(result[2][0], "6: LINE 1")
         self.assertEqual(result[3][0], "7: LINE 1")
 
-        cursor = pytest1.traverser("C", "8:", "4:", ascending=False)
+        cursor = pytest1.traverser("C", "8:", "4:", ascending=False, raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][0], "7: LINE 1")
@@ -235,14 +232,14 @@ class TestTextline(unittest.TestCase):
 
         # Index D is a new style index. Traversal works the same as 
         # traditional indices.
-        cursor = pytest1.traverser("D", "4:", "8:")
+        cursor = pytest1.traverser("D", "4:", "8:", raw=True)
         result = list(cursor)
         self.assertEqual(result[0][0], "4: LINE 2")
         self.assertEqual(result[1][0], "5: LINE 2")
         self.assertEqual(result[2][0], "6: LINE 2")
         self.assertEqual(result[3][0], "7: LINE 2")
 
-        cursor = pytest1.traverser("D", "8:", "4:", ascending=False)
+        cursor = pytest1.traverser("D", "8:", "4:", ascending=False, raw=True)
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][0], "7: LINE 2")

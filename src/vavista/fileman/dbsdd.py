@@ -692,9 +692,7 @@ class _DD(object):
         c = connect("0","")
         f = c.get_file("INDEX")
         rv = []
-        for k, rowid in f.traverser("B", from_value=self.fileid, to_value=self.fileid):
-            rv.append(f.get(rowid))
-        return rv
+        return list(f.traverser("B", from_value=self.fileid, to_value=self.fileid))
 
     @property
     def fields(self):

@@ -1,4 +1,5 @@
 
+import sys
 import unittest
 
 from vavista.fileman import connect, transaction, FilemanError
@@ -100,10 +101,7 @@ class TestMumps(unittest.TestCase):
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", "Test")
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "Test Insert")

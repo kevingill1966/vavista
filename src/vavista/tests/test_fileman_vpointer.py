@@ -187,19 +187,13 @@ class TestVPointer(unittest.TestCase):
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "ONE")
         self.assertEqual(str(rec.VP1), "ONE")
 
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "TEN")
@@ -212,15 +206,13 @@ class TestVPointer(unittest.TestCase):
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
 
-        key, rowid = cursor.next()
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # VPointer perfixes the remote file id to the value.
         self.assertEqual(str(rec.NAME), "ONE")
         self.assertEqual(str(rec.VP1), "VP1.1")
 
-        key, rowid = cursor.next()
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(str(rec.NAME), "TEN")
         self.assertEqual(str(rec.VP1), "VP2.1")
@@ -231,8 +223,7 @@ class TestVPointer(unittest.TestCase):
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
 
-        key, rowid = cursor.next()
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(str(rec.NAME), "ONE")
         self.assertEqual(str(rec.VP1), "VP1.1")
@@ -242,8 +233,7 @@ class TestVPointer(unittest.TestCase):
         self.assertEqual(str(reference.NAME), "ONE")
         self.assertEqual(str(reference.VALUE), "1")
 
-        key, rowid = cursor.next()
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(str(rec.NAME), "TEN")
         self.assertEqual(str(rec.VP1), "VP2.1")
@@ -263,8 +253,7 @@ class TestVPointer(unittest.TestCase):
         transaction.commit()
 
         cursor = pytest.traverser("B", "TEST INSERT")
-        key, rowid = cursor.next()
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(str(rec.NAME), "TEST INSERT")
         self.assertEqual(str(rec.VP1), "VP1.2")

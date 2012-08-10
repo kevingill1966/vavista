@@ -165,10 +165,7 @@ class TestPointer(unittest.TestCase):
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "EIGHT")
@@ -181,10 +178,7 @@ class TestPointer(unittest.TestCase):
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "EIGHT")
@@ -196,10 +190,7 @@ class TestPointer(unittest.TestCase):
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
-        key, rowid = cursor.next()
-
-        # retrieve the record
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         # validate the inserted data
         self.assertEqual(str(rec.NAME), "EIGHT")
@@ -226,8 +217,7 @@ class TestPointer(unittest.TestCase):
         transaction.commit()
 
         cursor = pytest.traverser("B", "TEST INSERT")
-        key, rowid = cursor.next()
-        rec = pytest.get(rowid)
+        rec = cursor.next()
 
         self.assertEqual(str(rec.NAME), "TEST INSERT")
         self.assertEqual(str(rec.P1), "2")

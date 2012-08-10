@@ -495,3 +495,9 @@ class DBSRow(object):
         field_dd = self._dd.fields[fieldid]
         foreignkeyval = field_dd.pyfrom_internal(foreignkeyval)
         return field_dd.foreign_get(foreignkeyval, internal=True)
+
+    def subfile_cursor(self, fieldname):
+        """
+            Provide a cursor to traverse a multi field.
+            Multi fields can have numerous attributes, so they cannot be translated to simple list. 
+        """
