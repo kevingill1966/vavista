@@ -169,6 +169,18 @@ class Field(object):
             s = ""
         return s
 
+    def foreign_get(self, s, internal=True):
+        """
+            Return the foreign record for this field.
+        """
+        raise FilemanError("""No Foreign File for this class""", self.__class__)
+
+    def validate_insert(self, s):
+        """
+            Default - no validation
+        """
+        return
+
 class FieldDatetime(Field):
     """
         The formats are hard-coded. I assume that there is an variable
@@ -373,6 +385,8 @@ class FieldPointer(Field):
     fmql_type = FT_POINTER
     laygo = True
 
+    _ffile = None
+
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'P'
@@ -385,12 +399,112 @@ class FieldPointer(Field):
             self.laygo = False
             self.foreign_fileid = self.foreign_fileid[:-1]
 
+    def foreign_get(self, s, internal=True):
+        """
+            Retrieve a remote record using a Pointer type
+        """
+        if self._ffile is None:
+            from vavista.fileman.dbsfile import DBSFile
+            dd = DD(self.foreign_fileid)
+            self._ffile = DBSFile(dd, internal=internal)
+        return self._ffile.get(s)
+
 class FieldVPointer(Field):
+    """
+        VPOINTER types reference one of a number of remote files. The data is stored
+        in the format "1;DIZ(9999921,", so that the remote record header ^DIZ(9999921,1,0)
+        can be queried quickly without understanding the data dictionary.
+
+        This format is ugly. I map the internal format to 
+
+            VP1.1 where VP1 is the configured ID for the file DIZ(9999921,
+
+    """
     fmql_type = FT_VPOINTER
+
+    # map fieldid to fileid, prompt text, prefix, laygo? ?, openform
+    remotefiles = None
+
+    # map open form version of file root to prefix
+    of_map = None
+    _ffile = None
+    _dd = None
+
+    def init_type(self, fieldinfo):
+        " Extract the remote file specifications "
+        super(FieldVPointer, self).init_type(fieldinfo)
+        self.remotefiles = remotefiles = {}
+        self.of_map = of_map = {}
+        self._ffile = {}
+        self._dd = {}
+
+        for remotefileid in [k for k, v in M.Globals["^DD"]["9999923"][1]["V"].keys_with_decendants() if k[0] in "123456789"]:
+            spec = M.Globals["^DD"]["9999923"][1]["V"][remotefileid][0].value.split("^")
+
+            # Now I need the remote file dd so that I can look up the Global for that file
+            file_dd = DD(spec[0])
+            open_form = file_dd.m_open_form()
+            of_map[open_form] = spec[3]
+
+            # remote file information
+            remotefiles[spec[3]] = (spec[0], spec[1], spec[2], spec[3], spec[4], open_form)
 
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'V'
+
+    def pyfrom_internal(self, s):
+        if s == "":
+            return None
+
+        key, remote_gl = s.split(";", 1)
+        rf = self.remotefiles[self.of_map["^" + remote_gl]][3]
+        return "%s.%s" % (rf, key)
+
+    def pyto_internal(self, s):
+        """
+            I am doing validation here - where else?
+            TODO: Move the validation to insert logic.
+        """
+        if s is None:
+            return ""
+        ref, key = s.split(".", 1)
+        remote_gl = self.remotefiles[ref][5]
+        return "%s;%s" % (key, remote_gl[1:])
+
+    def validate_insert(self, s):
+        """
+            Verify that an insert / modify attempt is valid. 
+
+            Ensure that the foreign key exists.
+            
+            This works on the Mumps Internal format.
+
+            For efficiency, generate the closed form of the target, and look-up
+            based on that, rather than navigating via a file.
+        """
+        key, remote_gl = s.split(";", 1)
+
+        cf = "^" + remote_gl + str(key) + ")"
+        if not M.Globals.from_closed_form(cf).exists():
+            raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
+
+    def foreign_get(self, s, internal=True):
+        """
+            Retrieve a remote record using a VPointer type
+
+            s is in the "internal" format of the vpointer.
+            This is not the stored value.
+
+        """
+        ref, key = s.split(".", 1)
+
+        if ref not in self._ffile:
+            from vavista.fileman.dbsfile import DBSFile
+            foreign_fileid = self.remotefiles[ref][0]
+            dd = DD(foreign_fileid)
+            self._ffile[ref] = DBSFile(dd, internal=internal)
+        return self._ffile[ref].get(key)
 
 class FieldMUMPS(Field):
     fmql_type = FT_MUMPS
@@ -594,7 +708,7 @@ def DD(filename, cache={}):
     """
     if filename not in cache:
         file_dd = _DD(filename)
-        cache[file_dd.filename] = _DD(filename)
+        cache[file_dd.fileid] = cache[file_dd.filename] = file_dd
         filename = file_dd.filename
     return cache[filename]
     

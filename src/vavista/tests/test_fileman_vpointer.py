@@ -2,10 +2,10 @@
 # Tests for the vpointer type - this allows one field to 
 # foreign key to different files.
 
-# TODO: work out a model for setting the vpointer
-# TODO: work out a traversal function
+# TODO: inserts
 
 import unittest
+import sys
 
 from vavista.fileman import connect, transaction, FilemanError
 from vavista.M import Globals
@@ -211,26 +211,85 @@ class TestVPointer(unittest.TestCase):
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
-        key, rowid = cursor.next()
 
-        # retrieve the record
+        key, rowid = cursor.next()
         rec = pytest.get(rowid)
 
-        # validate the inserted data
+        # VPointer perfixes the remote file id to the value.
         self.assertEqual(str(rec.NAME), "ONE")
-        self.assertEqual(str(rec.VP1), "1;DIZ(9999920,")
+        self.assertEqual(str(rec.VP1), "VP1.1")
 
         key, rowid = cursor.next()
-
-        # retrieve the record
         rec = pytest.get(rowid)
 
-        # validate the inserted data
         self.assertEqual(str(rec.NAME), "TEN")
-        self.assertEqual(str(rec.VP1), "1;DIZ(9999921,")
+        self.assertEqual(str(rec.VP1), "VP2.1")
 
+    def test_traverse(self):
+        pytest = self.dbs.get_file("PYTEST10C", internal=True)
 
+        # The low-level traverser, walks index "B", on NAME field
+        cursor = pytest.traverser("B", " ")
 
+        key, rowid = cursor.next()
+        rec = pytest.get(rowid)
+
+        self.assertEqual(str(rec.NAME), "ONE")
+        self.assertEqual(str(rec.VP1), "VP1.1")
+
+        # Traverse
+        reference = rec.traverse("VP1")
+        self.assertEqual(str(reference.NAME), "ONE")
+        self.assertEqual(str(reference.VALUE), "1")
+
+        key, rowid = cursor.next()
+        rec = pytest.get(rowid)
+
+        self.assertEqual(str(rec.NAME), "TEN")
+        self.assertEqual(str(rec.VP1), "VP2.1")
+
+        reference = rec.traverse("VP1")
+        self.assertEqual(str(reference.NAME), "TEN")
+        self.assertEqual(str(reference.VALUE), "10")
+
+    def test_insert(self):
+
+        pytest = self.dbs.get_file("PYTEST10C", internal=True)
+
+        transaction.begin()
+        rec = pytest.new()
+        rec.NAME = "TEST INSERT"
+        rec.VP1 = "VP1.2"
+        transaction.commit()
+
+        cursor = pytest.traverser("B", "TEST INSERT")
+        key, rowid = cursor.next()
+        rec = pytest.get(rowid)
+
+        self.assertEqual(str(rec.NAME), "TEST INSERT")
+        self.assertEqual(str(rec.VP1), "VP1.2")
+
+        reference = rec.traverse("VP1")
+        self.assertEqual(str(reference.NAME), "TWO")
+        self.assertEqual(str(reference.VALUE), "2")
+
+    def test_badinsert(self):
+        """
+            Should fail to insert if foreign key non-existant
+        """
+        pytest = self.dbs.get_file("PYTEST10C", internal=True)
+
+        transaction.begin()
+        exception = False
+        try:
+            rec = pytest.new()
+            rec.NAME = "TEST INSERT"
+            rec.VP1 = "VP1.20"
+            transaction.commit()
+        except Exception, e:
+            transaction.abort()
+            exception = e
+        self.assertNotEqual(exception, None)
 
 test_cases = (TestVPointer, )
 

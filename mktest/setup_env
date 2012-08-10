@@ -24,3 +24,5 @@ fi
 export gtmroutines="$root/o($root/r) $gtmroutines"
 
 export LD_LIBRARY_PATH=$gtm_dist
+
+PS1="(testenv): "

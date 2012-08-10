@@ -299,6 +299,7 @@ class DBSRow(object):
                     node = external_path[str(i+1)]
                     node.value = mvalue[i]
             else:
+                field.validate_insert(mvalue)
                 self._getitem(fieldid).value = mvalue
             return
         raise AttributeError(key)
@@ -472,21 +473,18 @@ class DBSRow(object):
 
             You can only follow an internal pointer as far as I can see.
         """
-        from vavista.fileman.dbsfile import DBSFile
-
         fieldid = self._dd.attrs.get(fieldname, None)
         if fieldid is None:
             raise AttributeError(fieldname)
-
-        field_dd = self._dd.fields[fieldid]
-        dd = DD(field_dd.foreign_fileid)
-        ffile = DBSFile(dd, internal=self._internal)
 
         if self._internal:
             try:
                 foreignkeyval = str(self._data[fieldid]['I'].value)
             except:
                 raise FilemanError("Value Not found %s" % fieldid)
-            return ffile.get(foreignkeyval)
         else:
             raise FilemanError("""You must be using "Internal" access to traverse to a related file""")
+
+        field_dd = self._dd.fields[fieldid]
+        foreignkeyval = field_dd.pyfrom_internal(foreignkeyval)
+        return field_dd.foreign_get(foreignkeyval, internal=True)

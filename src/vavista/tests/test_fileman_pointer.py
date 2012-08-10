@@ -7,6 +7,8 @@
 #       indicates that an inbound pointer exists. Can this
 #       be used to prevent deletes?
 
+# TODO: Not insert logic
+
 import unittest
 
 from vavista.fileman import connect, transaction, FilemanError

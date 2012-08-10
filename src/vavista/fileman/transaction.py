@@ -37,6 +37,11 @@
         on_before_XXXXX, on_after_XXXXX
         These are called before and after begins, commits and aborts.
 
+
+    Cache
+
+        I can cache results during a transaction. The cache 
+        variable is reset when a transaction begins.
 """
 
 from vavista import M
@@ -51,6 +56,9 @@ class TransactionManager:
     on_before_commit, on_after_commit = [], []
     on_before_abort, on_after_abort = [], []
 
+    # cache
+    cache = {}
+
     def begin(self, label="python"):
         "It is not necessary to call this"
         if self.in_transaction:
@@ -64,6 +72,8 @@ class TransactionManager:
         self.in_transaction = True
 
         for fn in self.on_after_begin: fn() # hooks
+
+        self.cache = {}
 
     def join(self, dbrow):
         if not self.in_transaction:
