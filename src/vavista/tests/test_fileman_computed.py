@@ -92,7 +92,7 @@ class TestComputed(unittest.TestCase):
         dd = self.dbs.dd("PYTEST7")
         self.assertEqual(dd.fileid, "999912")
 
-        pytest = self.dbs.get_file("PYTEST7", internal=False)
+        pytest = self.dbs.get_file("PYTEST7")
         transaction.begin()
         record = pytest.new()
         record.NAME = 'Test Insert'
@@ -116,7 +116,7 @@ class TestComputed(unittest.TestCase):
         try:
             rec.C1 = "200"
             transaction.commit()
-        except Exception, e1:
+        except FilemanError, e1:
             transaction.abort()
             e = e1
         self.assertTrue(isinstance(e, FilemanError))

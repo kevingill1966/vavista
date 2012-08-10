@@ -6,6 +6,7 @@
 """
 
 from vavista import M
+from shared import FilemanError
 
 from dbsrow import DBSRow
 
@@ -183,5 +184,7 @@ class DBSFile(object):
         """
             The logic to create a new row.
         """
-        record = DBSRow(self, self.dd, rowid=None, fieldids=self.fieldids, internal=self.internal)
+        if not self.internal:
+            raise FilemanError("You must use internal format to modify a file")
+        record = DBSRow(self, self.dd, rowid=None, fieldids=self.fieldids, internal=True)
         return record

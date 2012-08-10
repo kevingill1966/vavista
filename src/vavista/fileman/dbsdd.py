@@ -13,7 +13,7 @@ for file 999900
 
 Type Spec : all fields are optional.
 
-    From programmers manuall 14.9.2
+    From programmers manual 14.9.2
 
     [*]         - If there is a screen associated with a pointer or set of codes data type.
     [A]         - For multiples, a user entering a new subentry is not Asked for verification.
@@ -55,6 +55,7 @@ Type Spec : all fields are optional.
 """
 
 import datetime
+import math
 
 from vavista import M
 
@@ -177,9 +178,10 @@ class Field(object):
 
     def validate_insert(self, s):
         """
-            Default - no validation
+            Mandatory field checking.
         """
-        return
+        if self.mandatory and (s is None or s == ""):
+            raise FilemanError("""Field is mandatory""")
 
 class FieldDatetime(Field):
     """
@@ -292,20 +294,49 @@ class FieldNumeric(Field):
 
     def pyto_internal(self, s):
         if type(s) == float:
-            return "%.*f" % (self.format_info[1], s)
+            f = s
+            if self.format_info[1]:
+                return "%.*f" % (self.format_info[1], f)
+            return "%d" % f
         else:
-            return "%d" % s
+            # Verify that this is a valid number
+            try:
+                f = float(s)
+            except:
+                raise FilemanError("""[%s] is not a valid number""" % s)
+            if self.format_info[1]:
+                return "%.*f" % (self.format_info[1], f)
+            return "%d" % f
 
     def pyto_external(self, s):
         return self.pyto_internal(s)
 
- 
+    def validate_insert(self, s):
+        """
+            Verify that the code is a valid code.
+
+            I limit the validation to whether the input value is a numeric.
+            I silently ignore rounding problems. The reason for this is that
+            floating point numbers often don't round well,
+
+            >>> 1.1 % 1 == .1
+            False
+
+        """
+        super(FieldNumeric, self).validate_insert(s)  # mandatory check
+        if s:
+            try:
+                float(s)
+            except:
+                raise FilemanError("""[%s] is not a valid number""" % s)
+
 class FieldText(Field):
     fmql_type = FT_TEXT
 
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'F'
+
 
 class FieldSet(Field):
     fmql_type = FT_SET
@@ -315,6 +346,12 @@ class FieldSet(Field):
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'S'
+
+    def validate_insert(self, s):
+        """
+            Verify that the code is a valid code.
+        """
+        super(FieldSet, self).validate_insert(s)  # mandatory check
 
 class FieldWP(Field):
     """
@@ -413,7 +450,8 @@ class FieldPointer(Field):
         """
             Prevent insert if remote record does not exist.
         """
-        if s is not None:
+        super(FieldPointer, self).validate_insert(s)  # mandatory check
+        if s:
             file_dd = DD(self.foreign_fileid)
             remote_gl = file_dd.m_open_form()
             cf = remote_gl + str(s) + ")"
@@ -494,7 +532,8 @@ class FieldVPointer(Field):
             For efficiency, generate the closed form of the target, and look-up
             based on that, rather than navigating via a file.
         """
-        if s is not None:
+        super(FieldVPointer, self).validate_insert(s)  # mandatory check
+        if s:
             key, remote_gl = s.split(";", 1)
 
             cf = "^" + remote_gl + str(key) + ")"
@@ -524,6 +563,14 @@ class FieldMUMPS(Field):
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'K'
+
+    def validate_insert(self, s):
+        """
+            No need to validate the mumps code here. It is validated 
+            via the low-level DBS code on a commit.
+        """
+        super(FieldMUMPS, self).validate_insert(s)  # mandatory check
+        pass
 
 class FieldSubfile(Field):
     fmql_type = FT_SUBFILE

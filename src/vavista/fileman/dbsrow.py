@@ -278,6 +278,10 @@ class DBSRow(object):
         """
         if key[0] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
             return super(DBSRow, self).__setattr__(key, value)
+
+        if not self._internal:
+            raise FilemanError("You must use internal format to modify a file")
+
         fieldid = self._dd.attrs.get(key, None)
         if fieldid is not None:
             field = self._field_from_id(fieldid)
@@ -453,6 +457,9 @@ class DBSRow(object):
             TODO: Queue for Txn Commit
             TODO: Validate permissions
         """
+        if not self._internal:
+            raise FilemanError("You must use internal format to modify a file")
+
         if self._rowid is not None:
             M.Globals["Y"].kill()
             M.Globals["DIK"].value = self._dd.m_open_form()

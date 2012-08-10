@@ -1,7 +1,7 @@
 
 import unittest
 
-from vavista.fileman import connect, transaction
+from vavista.fileman import connect, transaction, FilemanError
 from vavista.M import Globals
 
 class TestTextline(unittest.TestCase):
@@ -133,7 +133,7 @@ class TestTextline(unittest.TestCase):
 
     def test_readwrite(self):
         transaction.begin()
-        pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+        pytest1 = self.dbs.get_file("PYTEST1")
         record = pytest1.new()
         record.NAME = 'Test Insert'
         record.TEXTLINE_ONE = "LINE 1"
@@ -158,25 +158,13 @@ class TestTextline(unittest.TestCase):
         # Verify utf-8 characters
         # Verify update
 
-    def test_traversal2(self):
-        # Strange error here - the first pass on the file
-        # works fine. The second pass inserts rows in a strange
-        # order and then fails. It is as if it is getting
-        # the rowids in the wrong place.
-
-        try:
-            return self.test_traversal(False) # External Data
-        except Exception, e:
-            import pdb; pdb.set_trace()
-            raise
-
-    def test_traversal(self, internal=True):
+    def test_traversal(self):
         """
             Insert multiple items. Verify that traversal back and 
             forward works.
         """
         transaction.begin()
-        pytest1 = self.dbs.get_file("PYTEST1", internal=internal)
+        pytest1 = self.dbs.get_file("PYTEST1")
         for i in range(10):
             record = pytest1.new()
             record.NAME = 'ROW%d' % i
@@ -269,7 +257,7 @@ class TestTextline(unittest.TestCase):
             it, it is not validated.
         """
         transaction.begin()
-        pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+        pytest1 = self.dbs.get_file("PYTEST1")
         record = pytest1.new()
         record.NAME = 'ROW1'
         record.TEXTLINE_ONE = "LINE 1"
@@ -278,12 +266,12 @@ class TestTextline(unittest.TestCase):
         transaction.begin()
         exception = False
         try:
-            pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+            pytest1 = self.dbs.get_file("PYTEST1")
             record = pytest1.new()
-            record.NAME = 'ROW2'
+            record.NAME = 'ROW3'
             record.TEXTLINE_ONE = "LINE 1"
-            record.TEXTLINE2 = ""
-        except:
+            record.TEXTLINE2 = None
+        except FilemanError, e:
             exception = True
         self.assertEqual(exception, True)
         transaction.abort()
@@ -291,39 +279,16 @@ class TestTextline(unittest.TestCase):
         transaction.begin()
         exception = False
         try:
-            pytest1 = self.dbs.get_file("PYTEST1", internal=False)
+            pytest1 = self.dbs.get_file("PYTEST1")
             record = pytest1.new()
             record.NAME = 'ROW3'
             record.TEXTLINE_ONE = "LINE 1"
-            record.TEXTLINE2 = None
-        except:
+            record.TEXTLINE2 = ""
+        except FilemanError, e:
             exception = True
         self.assertEqual(exception, True)
         transaction.abort()
 
-        # There seems to be an error in flushing the GT.M global data.
-        # If I print out the file header globals, the test succeeds.
-        # This probably relates to the transaction abort above.
-        # print "4", Globals["^DIZ"]["9999903"][0]
-        transaction.begin()
-        pytest1 = self.dbs.get_file("PYTEST1", internal=True)
-        record = pytest1.new()
-        record.NAME = 'ROW4'
-        record.TEXTLINE_ONE = "LINE 1"
-
-        pytest1 = self.dbs.get_file("PYTEST1", internal=True)
-        record = pytest1.new()
-        record.NAME = 'ROW5'
-        record.TEXTLINE_ONE = "LINE 1"
-        record.TEXTLINE2 = ""
-
-        pytest1 = self.dbs.get_file("PYTEST1", internal=True)
-        record = pytest1.new()
-        record.NAME = 'ROW6'
-        record.TEXTLINE_ONE = "LINE 1"
-        record.TEXTLINE2 = None
-
-        transaction.commit()
 
 test_cases = (TestTextline, )
 

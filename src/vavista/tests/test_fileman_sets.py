@@ -141,23 +141,6 @@ class TestSets(unittest.TestCase):
         self.assertEqual(rec.NUMBERS, "4")
         self.assertEqual(rec.YESNO, "N")
 
-        pytest4 = self.dbs.get_file("PYTEST4", internal=False)
-        transaction.begin()
-        rec = pytest4.new()
-        rec.NAME = "Insert External"
-        rec.GENDER = "FEMALE"
-        rec.NUMBERS = "FIVE"
-        rec.YESNO = "NO"
-        transaction.commit()
-
-        cursor = pytest4.traverser("B", "Insert External")
-        key, rowid = cursor.next()
-        rec = pytest4.get(rowid)
-
-        self.assertEqual(rec.GENDER, "FEMALE")
-        self.assertEqual(rec.NUMBERS, "FIVE")
-        self.assertEqual(rec.YESNO, "NO")
-
         # Check validation
         transaction.begin()
         try:
@@ -167,7 +150,7 @@ class TestSets(unittest.TestCase):
             transaction.abort()
 
         rec = pytest4.get(rowid)
-        self.assertEqual(rec.GENDER, "FEMALE")
+        self.assertEqual(rec.GENDER, "F")
 
     def test_indexing(self):
         """

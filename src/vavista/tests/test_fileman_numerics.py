@@ -4,7 +4,7 @@
 
 import unittest
 
-from vavista.fileman import connect, transaction
+from vavista.fileman import connect, transaction, FilemanError
 from vavista.M import Globals
 
 class TestNumerics(unittest.TestCase):
@@ -138,10 +138,10 @@ class TestNumerics(unittest.TestCase):
         self.assertEqual(rec.FLOAT2, -333.0)
 
     def test_write(self):
-        pytest3 = self.dbs.get_file("PYTEST3", internal=True)
+        pytest3 = self.dbs.get_file("PYTEST3")
         transaction.begin()
         rec = pytest3.new()
-        rec.NAME = "Insert Internal"
+        rec.NAME = "Insert"
         rec.INT1 = 11
         rec.INT2 = -11
         rec.DOLLARS = 44.44
@@ -149,7 +149,7 @@ class TestNumerics(unittest.TestCase):
         rec.FLOAT2 = -444.0
         transaction.commit()
 
-        cursor = pytest3.traverser("B", "Insert Internal")
+        cursor = pytest3.traverser("B", "Insert")
         key, rowid = cursor.next()
         rec = pytest3.get(rowid)
 
@@ -159,26 +159,48 @@ class TestNumerics(unittest.TestCase):
         self.assertEqual(rec.FLOAT1, 3333.33)
         self.assertEqual(rec.FLOAT2, -444.0)
 
-        pytest3 = self.dbs.get_file("PYTEST3", internal=False)
+    def test_badwrite(self):
+        pytest3 = self.dbs.get_file("PYTEST3")
+
         transaction.begin()
         rec = pytest3.new()
-        rec.NAME = "Insert External"
-        rec.INT1 = 11
-        rec.INT2 = -11
-        rec.DOLLARS = 44.44
-        rec.FLOAT1 = 3333.33
-        rec.FLOAT2 = -444.0
-        transaction.commit()
+        e = None
+        try:
+            rec.NAME = "bad Insert1"
+            rec.INT1 = 1.1
+            transaction.commit()
+        except FilemanError, e1:
+            transaction.abort()
+            e = e1
 
-        cursor = pytest3.traverser("B", "Insert External")
-        key, rowid = cursor.next()
-        rec = pytest3.get(rowid)
+        # rounding errors ignored
+        self.assertEquals(e, None)
 
-        self.assertEqual(rec.INT1, 11)
-        self.assertEqual(rec.INT2, -11)
-        self.assertEqual(rec.DOLLARS, 44.44)
-        self.assertEqual(rec.FLOAT1, 3333.33)
-        self.assertEqual(rec.FLOAT2, -444.0)
+        transaction.begin()
+        rec = pytest3.new()
+        e = None
+        try:
+            rec.NAME = "bad Insert2"
+            rec.DOLLARS = 44.4499
+            transaction.commit()
+        except FilemanError, e1:
+            transaction.abort()
+            e = e1
+
+        # rounding errors ignored
+        self.assertEquals(e, None)
+
+        transaction.begin()
+        rec = pytest3.new()
+        e = None
+        try:
+            rec.NAME = "bad Insert3"
+            rec.FLOAT1 = "abc"
+            transaction.commit()
+        except FilemanError, e1:
+            transaction.abort()
+            e = e1
+        self.assertTrue(isinstance(e, FilemanError))
 
     def test_indexing(self):
         """

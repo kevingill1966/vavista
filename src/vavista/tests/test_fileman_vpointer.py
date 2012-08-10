@@ -286,7 +286,7 @@ class TestVPointer(unittest.TestCase):
             rec.NAME = "TEST INSERT"
             rec.VP1 = "VP1.20"
             transaction.commit()
-        except Exception, e:
+        except FilemanError, e:
             transaction.abort()
             exception = e
         self.assertNotEqual(exception, None)

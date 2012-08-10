@@ -191,9 +191,6 @@ The knock-on is that I should consider converting other types, when using
 WIP
 ---
 
-The insert / update logic has only been validated with very simple field types.
-The full set of field types has to be investigated.
-
 sub-files, references and back references have to be investigated.
 
 I have to verify that inserts/updates maintain integrity of indexes, audit.

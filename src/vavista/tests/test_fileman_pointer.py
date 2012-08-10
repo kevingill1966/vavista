@@ -2,14 +2,12 @@
 # For the pointer to a file value, we should see a conspicuous
 # difference between internal and external formats
 
-# TODO: How to validate that the referenced value exists
 # TODO: the target file header (DD) has a field (PT) that
 #       indicates that an inbound pointer exists. Can this
 #       be used to prevent deletes?
 
-# TODO: Not insert logic
-
 import unittest
+import sys
 
 from vavista.fileman import connect, transaction, FilemanError
 from vavista.M import Globals
@@ -254,9 +252,9 @@ class TestPointer(unittest.TestCase):
         try:
             rec = pytest.new()
             rec.NAME = "TEST INSERT"
-            rec.VP1 = "20"
+            rec.P1 = "20"
             transaction.commit()
-        except Exception, e:
+        except FilemanError, e:
             transaction.abort()
             exception = e
         self.assertNotEqual(exception, None)

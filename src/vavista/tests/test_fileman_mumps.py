@@ -91,7 +91,7 @@ class TestMumps(unittest.TestCase):
             transaction.abort()
 
     def test_readwrite(self):
-        pytest = self.dbs.get_file("PYTEST8", internal=False)
+        pytest = self.dbs.get_file("PYTEST8")
         transaction.begin()
         record = pytest.new()
         record.NAME = 'Test Insert'
@@ -115,12 +115,10 @@ class TestMumps(unittest.TestCase):
         try:
             rec.M1 = "Invalid Code"
             transaction.commit()
-        except Exception, e1:
+        except FilemanError, e1:
             transaction.abort()
             e = e1
         self.assertTrue(isinstance(e, FilemanError))
-
-        # TODO: error handling with internal=True does not work
 
 test_cases = (TestMumps, )
 

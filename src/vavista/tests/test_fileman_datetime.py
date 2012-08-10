@@ -158,13 +158,6 @@ class TestDatetime(unittest.TestCase):
         record.DATE1 = datetime.date(2012,1,2)
         record.DATETIME1 = datetime.datetime(2012,1,2,3,4,5)
         record.DATETIME2 = datetime.datetime(2012,1,2,3,4,5)
-
-        ext_pytest2 = self.dbs.get_file("PYTEST2", internal=False)
-        record = ext_pytest2.new()
-        record.NAME = 'Test External Dates'
-        record.DATE1 = datetime.date(2012,1,2)
-        record.DATETIME1 = datetime.datetime(2012,1,2,3,4,5)
-        record.DATETIME2 = "T-2"     # input transformation should handle this.
         transaction.commit()
 
         cursor = int_pytest2.traverser("B", "Test Internal Dates")
@@ -174,14 +167,6 @@ class TestDatetime(unittest.TestCase):
         self.assertEquals(rec.DATE1, datetime.date(2012,1,2))
         self.assertEquals(rec.DATETIME1, datetime.datetime(2012,1,2,3,4,5))
         self.assertEquals(rec.DATETIME2, datetime.datetime(2012,1,2,3,4,5))
-
-        cursor = ext_pytest2.traverser("B", "Test External Dates")
-        key, rowid = cursor.next()
-        rec = ext_pytest2.get(rowid)
-        self.assertEqual(str(rec.NAME), "Test External Dates")
-        self.assertEquals(rec.DATE1, datetime.date(2012,1,2))
-        self.assertEquals(rec.DATETIME1, datetime.datetime(2012,1,2,3,4,5))
-        self.assertEquals(rec.DATETIME2, datetime.date.today() - datetime.timedelta(days=2))
 
     def test_indexing(self):
         """
