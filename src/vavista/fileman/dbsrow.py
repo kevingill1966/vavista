@@ -75,6 +75,8 @@ class DBSRow(object):
         self._stored_data = None
         if rowid is None or tmpid is not None:
             self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+        elif type(rowid) == str and rowid.startswith("+"):
+            self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
 
     def _before_value_change(self, fieldid, global_var, value):
         """
@@ -152,7 +154,7 @@ class DBSRow(object):
             self._locked = False
             
     def _on_commit(self):
-        if self._rowid:
+        if self._rowid and not (type(self._rowid) == str and self._rowid.startswith("+")):
             self._update()
         else:
             self._insert()
@@ -557,7 +559,7 @@ class DBSRow(object):
         foreignkeyval = field_dd.pyfrom_internal(foreignkeyval)
         return field_dd.foreign_get(foreignkeyval, internal=True)
 
-    def subfile_cursor(self, fieldname, raw=False):
+    def subfile_cursor(self, fieldname):
         """
             Provide a cursor to traverse a multi field.
             Multi fields can have numerous attributes, so they cannot be translated to simple list. 
@@ -589,3 +591,28 @@ class DBSRow(object):
         else:
             return []
 
+    def subfile_new(self, fieldname):
+        """
+            Create a new record in a sub-file.
+        """
+        from vavista.fileman.dbsfile import DBSFile
+
+        fieldid = self._dd.attrs.get(fieldname, None)
+        if fieldid is None:
+            raise AttributeError(fieldname)
+
+        # get the file header from the subfile
+        gl = self._dd.m_open_form()
+        header_gl = gl + str(self._rowid) + "," + str(fieldid) +",0)"
+
+        subfile_header = M.Globals.from_closed_form(header_gl).value
+        filename, subfileid, lastnum, rowcount = subfile_header.split("^")
+        if not rowcount or int(rowcount) == 0:
+            return []
+
+        subfile_dd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid)
+        subfile = DBSFile(subfile_dd, internal=self._dbsfile.internal)
+
+        # this is not terribly clear - the iens should be
+        # +1,rowid, I think the order is the reverse order of the path
+        return DBSRow(subfile, subfile_dd, rowid='+1,%s,' % fieldid)

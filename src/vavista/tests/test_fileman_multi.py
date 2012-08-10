@@ -148,6 +148,30 @@ class TestMulti(unittest.TestCase):
         self.assertEquals(cursor2[0].T1, "44")
         self.assertEquals(len(cursor2), 3)
 
+        # Insert a subfile element
+        try:
+            transaction.begin()
+            row = parent.subfile_new("T1")
+            row.T1 = "55"
+            transaction.commit()
+
+            cursor3 = parent.subfile_cursor("T1")
+            cursor3 = list(cursor3)
+            self.assertEquals(len(cursor3), 4)
+            self.assertEquals(cursor3[-1].T1, "55")
+
+            # delete an element
+            transaction.begin()
+            cursor3[-1].delete()
+            transaction.commit()
+
+            cursor4 = parent.subfile_cursor("T1")
+            cursor4 = list(cursor4)
+            self.assertEquals(len(cursor4), 3)
+            self.assertNotEquals(cursor4[-1].T1, "55")
+        except:
+            import pdb; pdb.post_mortem()
+
 test_cases = (TestMulti, )
 
 def load_tests(loader, tests, pattern):
