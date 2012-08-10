@@ -39,8 +39,6 @@ class DBSRow(object):
         Access either by id:   row["0.1"]
         or label:              row["name"]
 
-        TODO: lots
-        What about the other values, e.g. subfiles, wp files - do they come across.
     """
     _changed = False
     _changed_fields = None
@@ -55,7 +53,7 @@ class DBSRow(object):
     _row_fdaid = None
     _internal=True
 
-    def __init__(self, dbsfile, dd, rowid, fieldids=None, internal=True):
+    def __init__(self, dbsfile, dd, rowid, tmpid=None, fieldids=None, internal=True):
         self._dbsfile = dbsfile
         self._dd = dd
         self._rowid = rowid
@@ -70,9 +68,12 @@ class DBSRow(object):
             self._fieldids = [v.fieldid for (k,v) in dd.fields.items()]
 
         # Lazy evaluation
-        self._row_tmpid = "row%s" % id(self)
+        if tmpid:
+            self._row_tmpid = tmpid
+        else:
+            self._row_tmpid = "row%s" % id(self)
         self._stored_data = None
-        if rowid is None:
+        if rowid is None or tmpid is not None:
             self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
 
     def _before_value_change(self, fieldid, global_var, value):
@@ -186,6 +187,8 @@ class DBSRow(object):
         if self._rowid is None:
             return "+1," # protocol used for inserting records, fileman pm 3-125
         else:
+            if type(self._rowid) == str and self._rowid.endswith(','):
+                return self._rowid
             return str(self._rowid) + ","
 
     def __str__(self):
@@ -328,11 +331,21 @@ class DBSRow(object):
         if self._internal:
             flags = flags + "I"
 
-        fieldids = "*"  # TODO: fieldids
+        if self._dd.parent_dd:
+            # TODO: this is not quite worked out - rowid in the parent and the subfile
+            #       are mixed up this is not quite worked out - rowid in the parent and the subfile
+            #       are mixed up
+            fileid = self._dd.parent_dd.fileid
+            iens = self._iens
+            fieldids = str(self._dd.parent_fieldid) + "*"
+        else:
+            fieldids = "*"  # TODO: fieldids
+            fileid = self._dd.fileid
+            iens = self._iens
 
         M.proc("GETS^DIQ",
-            self._dd.fileid,     # numeric file id
-            self._iens,          # IENS
+            fileid,              # numeric file id
+            iens,                # IENS
             fieldids,            # Fields to return TODO
             flags,               # Flags N=no nulls, R=return field names
             self._row_tmpid,
@@ -341,11 +354,18 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], fieldids = [%s]"""
-                % (self._dd.filename, self._dd.fileid, self._rowid, "*"), str(err))
+            raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
+                % (self._dd.filename, fileid, iens, fieldids), str(err))
 
-        # Extract the result and store in python variable
-        self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+        self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+
+    def _save_global(self, gl):
+        """
+            Extract the result and store in python variable
+            I need to revisit this. It only copies the data when using
+            external access.
+        """
+        self._stored_data = dict(gl)
         self._changed = False
         self._changed_fields = []
 
@@ -355,6 +375,46 @@ class DBSRow(object):
                 value['I']._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
             else:
                 value._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
+
+    def _retrieve_subfile(self, fieldid, subfile_dd, subfile):
+        """
+            Retrieve all the rows of a subfile (multiple field)
+        """
+        M.Globals["ERR"].kill()
+
+        flags = 'N'    # no nulls
+        if self._internal:
+            flags = flags + "I"
+
+        fileid = self._dd.fileid
+        iens = self._iens
+        fieldids = str(fieldid) + "*"
+
+        tmpid = self._row_tmpid + str(fieldid)
+
+        M.proc("GETS^DIQ",
+            fileid,              # numeric file id
+            iens,                # IENS
+            fieldids,            # Fields to return TODO
+            flags,               # Flags N=no nulls, R=return field names
+            tmpid,
+            "ERR")
+
+        # Check for error
+        err = M.Globals["ERR"]
+        if err.exists():
+            raise FilemanError("""DBSRow._retrieve_subfile() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
+                % (self._dd.filename, fileid, iens, fieldids), str(err))
+
+        # Extract the result and store in rows.
+        subfile_data = M.Globals[tmpid][subfile_dd._fileid]
+
+        rv = []
+        for iens in [r[0] for r in subfile_data.keys_with_decendants()]:
+            row = DBSRow(subfile, subfile_dd, iens, tmpid=tmpid)
+            rv.append(row)
+
+        return rv
 
     def _create_fda(self):
         """
@@ -496,8 +556,35 @@ class DBSRow(object):
         foreignkeyval = field_dd.pyfrom_internal(foreignkeyval)
         return field_dd.foreign_get(foreignkeyval, internal=True)
 
-    def subfile_cursor(self, fieldname):
+    def subfile_cursor(self, fieldname, raw=False):
         """
             Provide a cursor to traverse a multi field.
             Multi fields can have numerous attributes, so they cannot be translated to simple list. 
+
+            Subfiles are stored in the main file. They have a logical id, so that a 
+            data dictionary can be stored, but they are not stored under this id.
         """
+        from vavista.fileman.dbsfile import DBSFile
+
+        fieldid = self._dd.attrs.get(fieldname, None)
+        if fieldid is None:
+            raise AttributeError(fieldname)
+
+        # get the file header from the subfile
+        gl = self._dd.m_open_form()
+        header_gl = gl + str(self._rowid) + "," + str(fieldid) +",0)"
+        if M.Globals.from_closed_form(header_gl).exists():
+            subfile_header = M.Globals.from_closed_form(header_gl).value
+            filename, subfileid, lastnum, rowcount = subfile_header.split("^")
+            if not rowcount or int(rowcount) == 0:
+                return []
+
+            # Create dbsrows for each record in the sub-file
+            subfile_dd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid)
+            subfile = DBSFile(subfile_dd, internal=self._dbsfile.internal)
+
+            return self._retrieve_subfile(fieldid, subfile_dd, subfile)
+
+        else:
+            return []
+

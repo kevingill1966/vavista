@@ -86,6 +86,7 @@ class Field(object):
     storage = None
 
     mandatory = False
+    prompt_for_more = False
     screened = False
     details = None
     m_valid = None
@@ -109,6 +110,10 @@ class Field(object):
 
         if typespec and typespec[0] == 'R':
             self.mandatory = True
+            typespec = typespec[1:]
+
+        if typespec and typespec[0] == 'M':
+            self.prompt_for_more = True
             typespec = typespec[1:]
 
         self.details = fieldinfo[2]
@@ -145,7 +150,7 @@ class Field(object):
         """
 
         # Strip leading, non-type specific flags
-        screened = '*IR'
+        screened = '*IRM'
         for i in range(len(flags)):
             if flags and flags[0] in screened:
                 flags = flags[1:]
@@ -613,13 +618,31 @@ class _DD(object):
     _indices = _fields = None
     filename = None
     attrs = None
+    parent_dd = None
+    parent_fieldid = None
 
-    def __init__(self, filename):
+    def __init__(self, filename, parent_dd=None, parent_fieldid=None):
+        """
+            If this is a subfile, there is no DIC entry. Pass in the parent
+            dd and the parent fieldid to work out the DIC information.
+        """
+
         # the filename cound be a file number - if it starts with a a numeric
         if filename[0] in "0123456789":
-            fileid = filename
-            dic_header = M.Globals["^DIC"][fileid]["0"].value
-            if dic_header is not None:
+            self._fileid = fileid = filename
+            if parent_dd:
+                self.parent_dd = parent_dd
+                self.parent_fieldid = parent_fieldid
+
+                # for a subfile there is no-name.
+                filename = ""
+
+                # work out the base global from the parent
+                #parent_gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
+                self._gl = parent_dd._gl + str(parent_fieldid) + ","
+
+            elif M.Globals["^DIC"][fileid]["0"].exists():
+                dic_header = M.Globals["^DIC"][fileid]["0"].value
                 filename = dic_header.split("^")[0]
         self.filename = filename
 
@@ -764,13 +787,14 @@ class _DD(object):
         return self._gl
 
 
-def DD(filename, cache={}):
+def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):
     """
         Simple mechanism to cache DD objects.
     """
     if filename not in cache:
-        file_dd = _DD(filename)
-        cache[file_dd.fileid] = cache[file_dd.filename] = file_dd
-        filename = file_dd.filename
+        file_dd = _DD(filename, parent_dd=parent_dd, parent_fieldid=parent_fieldid)
+        cache[file_dd.fileid] = file_dd
+        if file_dd.filename:
+            cache[file_dd.filename] = file_dd
     return cache[filename]
     

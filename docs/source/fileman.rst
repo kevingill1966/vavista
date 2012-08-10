@@ -69,6 +69,9 @@ To create a new record, use the new() operator on the FILE.::
     patientn.NAME = 'NEW,PATIENT'
     transaction.commit()    # writes out here.
 
+
+Note: you can only modify data in "INTERNAL" format.
+
 Searching
 ---------
 
@@ -89,7 +92,7 @@ dictionary::
 To search, the low level functions just walk the index, returning (key, rowid)
 pairs::
 
-    cursor = patients.traverser("SSN")
+    cursor = patients.traverser("SSN", raw=True)
     for i in range(5): print cursor.next()
     ('443483527', '702'),
     ('666000000', '100014'),
@@ -103,27 +106,61 @@ the cursor, it will walk the entire cursor before returning.
 To and From values. The start and end point to investigate can be included.
 By default the start value is included but the end value is excluded. ::
 
-    cursor = patients.traverser("SSN", '666000001', '666000003')
+    cursor = patients.traverser("SSN", '666000001', '666000003', raw=True)
     print list(cursor)
     > [('666000001', '237'), ('666000002', '205')]
 
 You can change the order of the search::
 
-    cursor = patients.traverser("SSN", '666000003', '666000001', ascending=False)
+    cursor = patients.traverser("SSN", '666000003', '666000001', ascending=False, raw=True)
     print list(cursor)
     [('666000003', '25'), ('666000002', '205')]
 
 By default, the from value is included, but the to value is excluded, e.g. to get
 the 666's use::
 
-    cursor = patients.traverser("SSN", '666', '667')
+    cursor = patients.traverser("SSN", '666', '667', raw=True)
     print list(cursor)
 
 You can include change the inclusion rules::
 
-    cursor = patients.traverser("SSN", '666000001', '666000003', to_rule="<=", from_rule=">=")
+    cursor = patients.traverser("SSN", '666000001', '666000003', to_rule="<=", from_rule=">=", raw=True)
     print list(cursor)
     [('666000001', '237'), ('666000002', '205'), ('666000003', '25')]
+
+You can retrieve records by excluding the raw=True flag.
+
+Following Pointers
+------------------
+
+Many field in Fileman are Pointers and VPointers. These fields contain a pointer
+to a record in another file, e.g. for maintaining vocabularies.
+
+For pointers, the value in the field is the record id of the remote file record.
+
+For variable pointers, the value is a foreign file selector and the record id in the
+foreign file (separated by dot).
+
+You can retrieve the remote record using the traverse function. This is a record
+level method, which takes the field name as a parameter.::
+
+        reference = rec.traverse("P1")
+
+Sub-Files / Multiples
+---------------------
+
+Where a field is a "multiple" value, the data is stored in a "sub-file". This data
+is stored as a sub-file of the main file, but it can be used in indexes on the
+main file.
+
+You read the sub-file by creating a cursor on the subfile. Here T1 is a sub-file field
+on the parent.
+
+::
+
+        parent = file.get(1)
+
+        cursor2 = parent.subfile_cursor("T1")
 
 
 Locking
