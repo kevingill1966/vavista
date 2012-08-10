@@ -776,7 +776,10 @@ class _DD(object):
         """
         if self._gl is None:
             self._gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
-        return "%s%s)" % (self._gl, rowid)
+        if self._gl.endswith(","):
+            return "%s%s0)" % (self._gl, rowid)
+        else:
+            return "%s%s)" % (self._gl, rowid)
 
     def m_open_form(self):
         """

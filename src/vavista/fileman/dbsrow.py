@@ -438,6 +438,7 @@ class DBSRow(object):
             Create a new record
 
             This is intended to be used during a transaction commit.
+            TODO: that concept is invalid - GT.M should manage transactions.
 
             UPDATE^DIE(FLAGS,FDA_ROOT,IEN_ROOT,MSG_ROOT)
         """

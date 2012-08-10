@@ -132,8 +132,21 @@ class TestMulti(unittest.TestCase):
 
         # Given the parent record, now traverse the children
         cursor2 = parent.subfile_cursor("T1")
-        print list(cursor2)
+        cursor2 = list(cursor2)
 
+        self.assertEquals(cursor2[0].T1, "1")
+        self.assertEquals(cursor2[1].T1, "2")
+        self.assertEquals(cursor2[2].T1, "3")
+
+        # Verify update of a subfile element
+        transaction.begin()
+        cursor2[0].T1 = '44'
+        transaction.commit()
+
+        cursor2 = parent.subfile_cursor("T1")
+        cursor2 = list(cursor2)
+        self.assertEquals(cursor2[0].T1, "44")
+        self.assertEquals(len(cursor2), 3)
 
 test_cases = (TestMulti, )
 
