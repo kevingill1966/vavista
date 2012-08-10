@@ -409,6 +409,17 @@ class FieldPointer(Field):
             self._ffile = DBSFile(dd, internal=internal)
         return self._ffile.get(s)
 
+    def validate_insert(self, s):
+        """
+            Prevent insert if remote record does not exist.
+        """
+        if s is not None:
+            file_dd = DD(self.foreign_fileid)
+            remote_gl = file_dd.m_open_form()
+            cf = remote_gl + str(s) + ")"
+            if not M.Globals.from_closed_form(cf).exists():
+                raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
+
 class FieldVPointer(Field):
     """
         VPOINTER types reference one of a number of remote files. The data is stored
@@ -483,11 +494,12 @@ class FieldVPointer(Field):
             For efficiency, generate the closed form of the target, and look-up
             based on that, rather than navigating via a file.
         """
-        key, remote_gl = s.split(";", 1)
+        if s is not None:
+            key, remote_gl = s.split(";", 1)
 
-        cf = "^" + remote_gl + str(key) + ")"
-        if not M.Globals.from_closed_form(cf).exists():
-            raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
+            cf = "^" + remote_gl + str(key) + ")"
+            if not M.Globals.from_closed_form(cf).exists():
+                raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
 
     def foreign_get(self, s, internal=True):
         """

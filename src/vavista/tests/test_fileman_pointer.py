@@ -216,6 +216,50 @@ class TestPointer(unittest.TestCase):
         self.assertEqual(str(reference2.NAME), "EIGHT")
         self.assertEqual(str(reference2.VALUE), "8")
 
+    def test_insert(self):
+
+        pytest = self.dbs.get_file("PYTEST9B", internal=True)
+
+        transaction.begin()
+        rec = pytest.new()
+        rec.NAME = "TEST INSERT"
+        rec.P1 = "2"
+        rec.P2 = "5"
+        transaction.commit()
+
+        cursor = pytest.traverser("B", "TEST INSERT")
+        key, rowid = cursor.next()
+        rec = pytest.get(rowid)
+
+        self.assertEqual(str(rec.NAME), "TEST INSERT")
+        self.assertEqual(str(rec.P1), "2")
+        self.assertEqual(str(rec.P2), "5")
+
+        reference = rec.traverse("P1")
+        self.assertEqual(str(reference.NAME), "TWO")
+        self.assertEqual(str(reference.VALUE), "2")
+
+        reference = rec.traverse("P2")
+        self.assertEqual(str(reference.NAME), "NINE")
+        self.assertEqual(str(reference.VALUE), "9")
+
+    def test_badinsert(self):
+        """
+            Should fail to insert if foreign key non-existant
+        """
+        pytest = self.dbs.get_file("PYTEST9B", internal=True)
+
+        transaction.begin()
+        exception = False
+        try:
+            rec = pytest.new()
+            rec.NAME = "TEST INSERT"
+            rec.VP1 = "20"
+            transaction.commit()
+        except Exception, e:
+            transaction.abort()
+            exception = e
+        self.assertNotEqual(exception, None)
 
 test_cases = (TestPointer, )
 
