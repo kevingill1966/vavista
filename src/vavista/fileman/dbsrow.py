@@ -525,8 +525,27 @@ class DBSRow(object):
 
         if self._rowid is not None:
             M.Globals["Y"].kill()
-            M.Globals["DIK"].value = self._dd.m_open_form()
-            M.Globals["DA"].value = str(self._rowid)
+            if type(self._rowid) == str and self._rowid.endswith(","):
+                # Generate a DA structure for a multiple.
+                # see manual, P 2-58
+                parts = [x for x in self._rowid.split(",") if x]
+                rowid = parts[-1]
+
+                cf = self._dd.m_open_form()
+                cf = [x for x in cf.split("(",1)[1].split(",") if x]
+                cf.reverse()
+                parts = parts + cf
+
+                M.Globals["DA"].value = parts[0]
+                for i, part in enumerate(parts[1:]):
+                    M.Globals["DA"][i+1].value = part
+
+                # the classic api paths are different that the DBS api paths
+                M.Globals["DIK"].value = self._dd.m_open_form() + "%s," % rowid
+            else:
+                M.Globals["DIK"].value = self._dd.m_open_form()
+                M.Globals["DA"].value = str(self._rowid)
+
             M.proc("^DIK")
             if M.Globals["Y"] == "-1":
                 # I don't know where to look for the error message - Classic API

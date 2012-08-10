@@ -1,15 +1,6 @@
 
 """
-    I have not worked out how the API is supposed to return sub-file items.
-
-    THE API for SUBFILES
-
-    In the "GETS^DIQ", pass "**" as the field list to include subfields.
-
-    All subfile entries are returned , under the subfile fileid at the top level
-    of the result set...
-
-
+    For subfile, provide a simple cursor concept on the rows.
 """
 
 import unittest
@@ -149,28 +140,26 @@ class TestMulti(unittest.TestCase):
         self.assertEquals(len(cursor2), 3)
 
         # Insert a subfile element
-        try:
-            transaction.begin()
-            row = parent.subfile_new("T1")
-            row.T1 = "55"
-            transaction.commit()
+        transaction.begin()
+        row = parent.subfile_new("T1")
+        row.T1 = "55"
+        transaction.commit()
 
-            cursor3 = parent.subfile_cursor("T1")
-            cursor3 = list(cursor3)
-            self.assertEquals(len(cursor3), 4)
-            self.assertEquals(cursor3[-1].T1, "55")
+        cursor3 = parent.subfile_cursor("T1")
+        cursor3 = list(cursor3)
+        self.assertEquals(len(cursor3), 4)
+        self.assertEquals(cursor3[-1].T1, "55")
 
-            # delete an element
-            transaction.begin()
-            cursor3[-1].delete()
-            transaction.commit()
+        # delete an element
+        # TODO: this functionality is not currently working.
+        transaction.begin()
+        cursor3[-1].delete()
+        transaction.commit()
 
-            cursor4 = parent.subfile_cursor("T1")
-            cursor4 = list(cursor4)
-            self.assertEquals(len(cursor4), 3)
-            self.assertNotEquals(cursor4[-1].T1, "55")
-        except:
-            import pdb; pdb.post_mortem()
+        cursor4 = parent.subfile_cursor("T1")
+        cursor4 = list(cursor4)
+        self.assertEquals(len(cursor4), 3)
+        self.assertNotEquals(cursor4[-1].T1, "55")
 
 test_cases = (TestMulti, )
 
