@@ -352,6 +352,11 @@ class FieldSet(Field):
             Verify that the code is a valid code.
         """
         super(FieldSet, self).validate_insert(s)  # mandatory check
+        if s not in [d[0] for d in self.details]:
+            valid = []
+            for k,v in self.details:
+                valid.append("%s=%s" % (k, v))
+            raise FilemanError("""Value [%s] is not valid. must be one of: %s""" % (s, ", ".join(valid)))
 
 class FieldWP(Field):
     """
