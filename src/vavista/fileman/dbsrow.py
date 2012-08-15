@@ -367,7 +367,14 @@ class DBSRow(object):
             I need to revisit this. It only copies the data when using
             external access.
         """
-        self._stored_data = dict(gl)
+        if self._internal:
+            # need to retrieve a sub-field
+            self._stored_data = {}
+            for k, v in gl.keys_with_decendants():
+                self._stored_data[k] = gl[k]
+        else:
+            self._stored_data = dict(gl)
+
         self._changed = False
         self._changed_fields = []
 
