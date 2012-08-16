@@ -8,6 +8,7 @@
 #include "structmember.h"
 
 #include <string.h>
+#include <time.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -19,6 +20,8 @@
 static gtm_char_t     msgbuf[MAXMSG];
 static gtm_status_t   status;
 static int gInitialised=0;
+
+FILE *fpLog = NULL;
 
 /* GT.M call wrapper - see example code in GT.M manual
  */
@@ -223,6 +226,8 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
 
     static ci_name_descriptor cmd;
     static gtm_string_t cmd_s;
+    struct timespec timeStart, timeEnd; 
+    long msec;
 
     char empty[1] = {'\0'};
 
@@ -267,6 +272,7 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
         return NULL;
     }
     sprintf(eval, "%.*s", MAXVAL-1, PyString_AsString(py_eval));
+
 
     /* At this stage we have the parameters as pyobjects.
         If we are to use the value, we need to copy it to an appropriate variable
@@ -337,6 +343,8 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
         }
     }
 
+    clock_gettime(CLOCK_REALTIME, &timeStart); 
+
     /* CALL GT.M */
     status = gtm_cip(&cmd, eval,
         s[0],s[1],s[2],s[3],s[4],s[5],s[6],s[7],
@@ -350,6 +358,13 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
         free_pointers(alloced);
         return NULL;
     }
+
+    clock_gettime(CLOCK_REALTIME, &timeEnd); 
+    msec = timeEnd.tv_nsec - timeStart.tv_nsec;
+    msec += (timeEnd.tv_sec - timeStart.tv_sec) * 1000000000;
+    msec /= 1000000; 
+    /* log time in ms */
+    fprintf(fpLog, "%ld: %s\n", msec, eval);
 
     if (rvCount > 0) {
         rv = PyTuple_New(rvCount);
@@ -481,8 +496,193 @@ GTM_trollback(PyObject *self, PyObject *noarg)
     return Py_None;
 }
 
+/*
+ * This is a quick way to return a global. haven't identified
+ * how to return a non-persistent global.
+ */
+static PyObject*
+GTM_mget(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *varname;
+    char p[MAXVAL];
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "s", &varname)) {
+        sprintf(msgbuf, "mget requires a mumps variable name");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "mget";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd, varname, p);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    return Py_BuildValue("s", p);
+}
+
+/*
+ * Set a global variable
+ */
+static PyObject*
+GTM_mset(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *varname, *value;
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "ss", &varname, &value)) {
+        sprintf(msgbuf, "mset requires a mumps variable name and a value");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "mset";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd, varname, value);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+/*
+ * Order through a global variable
+ */
+static PyObject*
+GTM_mord(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *varname;
+    char p[MAXVAL];
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "s", &varname)) {
+        sprintf(msgbuf, "mord requires a mumps variable name");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "mord";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd, varname, p);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    return Py_BuildValue("s", p);
+}
+
+/*
+ * Order through a data-dictionary record
+ *
+ * set s0=$order(^DD(s2,s0)) Q:s0'=+s0  s s1=$G(^DD(s2,s0,0)),s3=$G(^DD(s2,s0,.1)),s4=$G(^DD(s2,s0,3))
+ */
+static PyObject*
+GTM_ddwalk(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *fileid, *fieldid;
+    char fieldid_arg[MAXVAL];
+    char info[MAXVAL];
+    char title[MAXVAL];
+    char help[MAXVAL];
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "ss", &fileid, &fieldid)) {
+        sprintf(msgbuf, "ddwalk requires a mumps fileid and the current field number");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "ddwalk";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    strcpy(fieldid_arg, fieldid); /* mumps overwrites this so need a copy */
+
+    status = gtm_cip(&cmd, fieldid_arg, info, fileid, title, help);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    return Py_BuildValue("ssss", fieldid_arg, info, title, help);
+}
+
+/*
+ * Order through a gl item. Return the next key, data, value
+ *
+ * set s0=$order(^DD(s2,s0)) Q:s0'=+s0  s s1=$G(^DD(s2,s0,0)),s3=$G(^DD(s2,s0,.1)),s4=$G(^DD(s2,s0,3))
+ */
+static PyObject*
+GTM_glwalk(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *global_ref, *key;
+    char key_arg[MAXVAL];
+    long data;
+    char value[MAXVAL];
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "ss", &global_ref, &key)) {
+        sprintf(msgbuf, "glwalk requires a mumps global reference and the key");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "glwalk";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    strcpy(key_arg, key); /* mumps overwrites this so need a copy */
+
+    status = gtm_cip(&cmd, global_ref, key_arg, &data, value);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    return Py_BuildValue("sls", key_arg, data, value);
+}
+
+
 static PyMethodDef GTMMethods[] = {
     {"mexec",   GTM_mexec,   METH_VARARGS, "Dynamically Invoke a Mumps Command."},
+    {"mget",   GTM_mget,   METH_VARARGS, "Get a mumps variable."},
+    {"mset",   GTM_mset,   METH_VARARGS, "Set a mumps variable."},
+    {"mord",   GTM_mord,   METH_VARARGS, "Order through a mumps variable."},
+    {"ddwalk",   GTM_ddwalk,   METH_VARARGS, "Order through a data dictionary global."},
+    {"glwalk",   GTM_glwalk,   METH_VARARGS, "Order through a global."},
     {"tstart",   GTM_tstart,   METH_VARARGS, "Transaction begin."},
     {"tcommit",   GTM_tcommit,   METH_NOARGS, "Transaction commit."},
     {"trollback",   GTM_trollback,   METH_NOARGS, "Transaction rollback."},
@@ -504,5 +704,6 @@ init_gtm(void) {
 
     Py_INCREF(&INOUT_type);
     PyModule_AddObject(m, "INOUT", (PyObject *)&INOUT_type); 
+    fpLog = fopen("/tmp/log", "w+");
 }
 

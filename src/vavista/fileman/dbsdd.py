@@ -723,15 +723,16 @@ class _DD(object):
             Return information about the dd fields
         """
         if self._fields is None:
-            M.mexec('set U="^"') # DBS Calls Require this
+            M.mset('U', "^") # DBS Calls Require this
             f = self._fields = {}
             attrs = self.attrs = {}
             fieldid = "0"
             while 1:
                 # Subscript 0 is field description, .1 is the title, 3 is help
-                fieldid, info, title, fieldhelp = M.mexec(
-                    """set s0=$order(^DD(s2,s0)) Q:s0'=+s0  s s1=$G(^DD(s2,s0,0)),s3=$G(^DD(s2,s0,.1)),s4=$G(^DD(s2,s0,3))""",
-                    M.INOUT(str(fieldid)), M.INOUT(""), str(self._fileid), M.INOUT(""), M.INOUT(""))
+                fieldid, info, title, fieldhelp = M.ddwalk(self._fileid, fieldid)
+                #fieldid, info, title, fieldhelp = M.mexec(
+                #    """set s0=$order(^DD(s2,s0)) Q:s0'=+s0  s s1=$G(^DD(s2,s0,0)),s3=$G(^DD(s2,s0,.1)),s4=$G(^DD(s2,s0,3))""",
+                #    M.INOUT(str(fieldid)), M.INOUT(""), str(self._fileid), M.INOUT(""), M.INOUT(""))
                 if fieldid == "" or fieldid[0] not in "0123456789.":
                     break
 

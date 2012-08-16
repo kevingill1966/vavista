@@ -27,9 +27,10 @@ class DBS(object):
             Oddly, I cannot see how to list the files using the DBS API.
             This is required for debugging etc.
         """
-        M.mexec('''set DUZ=s0,U="^"''', self.DUZ)
+        M.mset('DUZ',self.DUZ)
+        M.mset('U', "^")
         if self.isProgrammer:
-            M.mexec('''set DUZ(0)="@"''')
+            M.mset('DUZ(0)', "@")
         rv = []
         s0 = "0"
         while s0 != "":

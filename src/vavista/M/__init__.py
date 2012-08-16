@@ -28,6 +28,10 @@ _mumps = getattr(vavista, "gtm"+gtm_ver)._gtm
 
 INOUT=_mumps.INOUT
 mexec=_mumps.mexec
+mget=_mumps.mget
+mset=_mumps.mset
+ddwalk=_mumps.ddwalk
+glwalk=_mumps.glwalk
 
 # I am leaving in debugging stuff for now as it is very difficult to diagnose 
 # txn issues. Set this flag to True to enable debugging
@@ -224,11 +228,12 @@ class Global(object):
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        s1, = mexec("set s1=@s0", s0, INOUT(""))
+        s1 = mget(s0)
         if s1:
             try:
                 s1 = s1.decode('utf-8')
             except:
+                import pdb; pdb.post_mortem()
                 logger.exception("Global.get_value (%s) Unicode decode error on [%s]", s0, s1)
                 raise
 
@@ -252,7 +257,7 @@ class Global(object):
         else:
             s1 = str(s1)
 
-        mexec("set @s0=s1", s0, s1)
+        mset(s0, s1)
 
     value = property(get_value, set_value)
 
@@ -292,14 +297,14 @@ class Global(object):
             returns path, value, flags
         """
         if len(self.path) > 1:
-            path = '%s("%s",s0)' % (self.path[0], '","'.join(self.path[1:]))
+            path = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
         else:
-            path = '%s(s0)' % (self.path[0])
+            path = '%s' % (self.path[0])
 
         s0 = ""
         rv = []
         while 1:
-            s0, l0, s1 = mexec('set s0=$order(%s),l0=0 if s0\'="" set l0=$data(%s),s1=$GET(%s) ' % (path, path, path), INOUT(s0), INOUT(0), INOUT(""))
+            s0, l0, s1 = glwalk(path, s0)
             if s0:
                 if l0 & filter:
                     rv.append((s0, s1, l0))

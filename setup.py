@@ -75,7 +75,7 @@ _gtm = Extension('vavista.gtm%s._gtm' % gtm_ver,
                      ('MINOR_VERSION', MINOR_VERSION)],
     include_dirs = ['/usr/include/python2.7',
                     '/usr/local/gtm'],
-    libraries = ['gtmshr','python2.7'],
+    libraries = ['gtmshr','python2.7', "rt"],
     library_dirs = [gtm_dist],
     sources = ['src/vavista/_gtm/_gtm.c'])
 
