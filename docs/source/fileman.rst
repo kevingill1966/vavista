@@ -225,6 +225,24 @@ I need to covert dates to datetime formats.
 The knock-on is that I should consider converting other types, when using
 "internal" representation.
 
+Cross References / Keys and Identifiers
+---------------------------------------
+
+I am very confused here.
+
+*Cross References* are mechanisms for locating records in Fileman. When
+I create a new file, it creates a *Traditional* *Regular* cross reference
+using an index B.
+
+*Traditional Cross References* are stored on the main file. *New Style 
+Cross References* are stored in the *INDEX* file.
+
+*Keys* are identifying *Cross References*, i.e. they are unique.
+
+*Identifiers* are groups of fields which uniquely identify records.
+
+There are *Regular* and *Mumps* cross references.
+
 WIP
 ---
 

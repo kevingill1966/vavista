@@ -74,9 +74,9 @@ class DBSRow(object):
             self._row_tmpid = "row%s" % id(self)
         self._stored_data = None
         if rowid is None or tmpid is not None:
-            self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+            self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
         elif type(rowid) == str and rowid.startswith("+"):
-            self._stored_data = dict(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+            self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
 
     def _before_value_change(self, fieldid, global_var, value):
         """
@@ -207,9 +207,9 @@ class DBSRow(object):
                 else:
                     fn = "not in dd"
                 if self._internal:
-                    rv.append('%s (%s) = "%s"' % (fn, k, v['I']))
+                    rv.append('%s (%s) = "%s"' % (fn, k, v['I'].value))
                 else:
-                    rv.append('%s (%s) = "%s"' % (fn, k, v))
+                    rv.append('%s (%s) = "%s"' % (fn, k, v.value))
         return '\n'.join(rv)
 
     def keys(self):
@@ -604,11 +604,12 @@ class DBSRow(object):
         header_gl = gl + str(self._rowid) + "," + str(fieldid) +",0)"
         if M.Globals.from_closed_form(header_gl).exists():
             subfile_header = M.Globals.from_closed_form(header_gl).value
-            filename, subfileid, lastnum, rowcount = subfile_header.split("^")
+            filename, subfileid_with_flags, lastnum, rowcount = subfile_header.split("^")
             if not rowcount or int(rowcount) == 0:
                 return []
 
             # Create dbsrows for each record in the sub-file
+            subfileid = ''.join([c for c in subfileid_with_flags if c in "0123456789."])
             subfile_dd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid)
             subfile = DBSFile(subfile_dd, internal=self._dbsfile.internal)
 
