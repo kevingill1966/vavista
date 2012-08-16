@@ -30,6 +30,8 @@ INOUT=_mumps.INOUT
 mexec=_mumps.mexec
 mget=_mumps.mget
 mset=_mumps.mset
+mkill=_mumps.mkill
+mdata=_mumps.mdata
 ddwalk=_mumps.ddwalk
 glwalk=_mumps.glwalk
 
@@ -266,7 +268,7 @@ class Global(object):
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        mexec("kill @s0", s0)
+        mkill(s0)
 
     def keys(self):
         """
@@ -348,7 +350,7 @@ class Global(object):
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        l0, = mexec("set l0=$data(@s0)", s0, INOUT(0))
+        l0 = mdata(s0)
         return l0 > 0
 
     def has_value(self):
@@ -356,7 +358,7 @@ class Global(object):
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        l0, = mexec("set l0=$data(@s0)", s0, INOUT(0))
+        l0 = mdata(s0)
         return l0 & 1
 
     def has_decendants(self):
@@ -364,7 +366,7 @@ class Global(object):
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        l0, = mexec("set l0=$data(@s0)", s0, INOUT(0))
+        l0 = mdata(s0)
         if l0 & 10 :
             return 1
         return 0
@@ -378,7 +380,7 @@ class Global(object):
         """
         prefix = self.open_form
         for k, v in serialised_form:
-            mexec(str("set %s%s=s0" % (prefix, k)), safe_str(v))
+            mset('%s%s' % (prefix, k), safe_str(v))
 
     def serialise(self, trim_path=None):
         """
@@ -495,7 +497,7 @@ class _Globals(object):
             Warning - obviously everything at the values will be overwritten.
         """
         for k, v in serialised_form:
-            mexec(str("set %s=s0" % k), safe_str(v))
+            mset(k, safe_str(v))
 
     def from_closed_form(self, gl):
         """

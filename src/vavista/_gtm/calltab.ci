@@ -7,6 +7,8 @@ trollback: void    trollback^vavistagtm()
 mget: void    mget^vavistagtm(I:gtm_char_t*,O:gtm_char_t*)
 mset: void    mset^vavistagtm(I:gtm_char_t*,I:gtm_char_t*)
 mord: void    mord^vavistagtm(I:gtm_char_t*,O:gtm_char_t*)
+mdata: void   mdata^vavistagtm(I:gtm_char_t*,O:gtm_ulong_t*)
+mkill: void   mkill^vavistagtm(I:gtm_char_t*)
 
 ddwalk: void ddwalk^vavistagtm(IO:gtm_char_t*,O:gtm_char_t*,I:gtm_char_t*,O:gtm_char_t*,O:gtm_char_t*)
 glwalk: void glwalk^vavistagtm(I:gtm_char_t*,IO:gtm_char_t*,O:gtm_ulong_t*,O:gtm_char_t*)

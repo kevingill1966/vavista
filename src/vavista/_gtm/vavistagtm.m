@@ -1,4 +1,4 @@
-; M routines, based on work in the GT.M manual file gtmcip_gtmaccess.zip, and the pyGTMx python module. ; 8/16/12 5:20pm
+; M routines, based on work in the GT.M manual file gtmcip_gtmaccess.zip, and the pyGTMx python module. ; 8/16/12 6:07pm
 ;
 %vavistagtm  ; entry points to access GT.M
     write "vavistagtm entry point - see documentation for usage of this code"
@@ -61,7 +61,15 @@ glwalk(ref,key,data,value) ; Order through a global
     quit:$quit 0 quit
     ;
 
-
+; Putting these in as separate functions to take out of mexec timings log
+mkill(ref)
+    kill @ref
+    quit:$quit 0 quit
+    ;
+mdata(ref,d)
+    set d=$data(@ref)
+    quit:$quit 0 quit
+    ;
 
 ;; This was an attempt at transaction management. It did not work because
 ;; you cannot exit a function within a transaction. Furthermore, you cannot

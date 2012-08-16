@@ -364,7 +364,9 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
     msec += (timeEnd.tv_sec - timeStart.tv_sec) * 1000000000;
     msec /= 1000000; 
     /* log time in ms */
+    fpLog = fopen("/tmp/log", "a+");
     fprintf(fpLog, "%ld: %s\n", msec, eval);
+    fclose(fpLog);
 
     if (rvCount > 0) {
         rv = PyTuple_New(rvCount);
@@ -675,6 +677,66 @@ GTM_glwalk(PyObject *self, PyObject *args)
     return Py_BuildValue("sls", key_arg, data, value);
 }
 
+static PyObject*
+GTM_mkill(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *varname;
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "s", &varname)) {
+        sprintf(msgbuf, "mkill requires a mumps variable name");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "mkill";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd, varname);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject*
+GTM_mdata(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *varname;
+    long data;
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "s", &varname)) {
+        sprintf(msgbuf, "mdata requires a mumps variable name");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "mdata";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    status = gtm_cip(&cmd, varname, &data);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    return Py_BuildValue("l", data);
+}
+
 
 static PyMethodDef GTMMethods[] = {
     {"mexec",   GTM_mexec,   METH_VARARGS, "Dynamically Invoke a Mumps Command."},
@@ -682,6 +744,8 @@ static PyMethodDef GTMMethods[] = {
     {"mset",   GTM_mset,   METH_VARARGS, "Set a mumps variable."},
     {"mord",   GTM_mord,   METH_VARARGS, "Order through a mumps variable."},
     {"ddwalk",   GTM_ddwalk,   METH_VARARGS, "Order through a data dictionary global."},
+    {"mdata",   GTM_mdata,   METH_VARARGS, "$data on variable."},
+    {"mkill",   GTM_mkill,   METH_VARARGS, "kill a variable."},
     {"glwalk",   GTM_glwalk,   METH_VARARGS, "Order through a global."},
     {"tstart",   GTM_tstart,   METH_VARARGS, "Transaction begin."},
     {"tcommit",   GTM_tcommit,   METH_NOARGS, "Transaction commit."},
@@ -705,5 +769,6 @@ init_gtm(void) {
     Py_INCREF(&INOUT_type);
     PyModule_AddObject(m, "INOUT", (PyObject *)&INOUT_type); 
     fpLog = fopen("/tmp/log", "w+");
+    fclose(fpLog);
 }
 
