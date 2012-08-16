@@ -34,6 +34,7 @@ mkill=_mumps.mkill
 mdata=_mumps.mdata
 ddwalk=_mumps.ddwalk
 glwalk=_mumps.glwalk
+wpwalk=_mumps.wpwalk
 
 # I am leaving in debugging stuff for now as it is very difficult to diagnose 
 # txn issues. Set this flag to True to enable debugging

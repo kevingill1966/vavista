@@ -12,3 +12,4 @@ mkill: void   mkill^vavistagtm(I:gtm_char_t*)
 
 ddwalk: void ddwalk^vavistagtm(IO:gtm_char_t*,O:gtm_char_t*,I:gtm_char_t*,O:gtm_char_t*,O:gtm_char_t*)
 glwalk: void glwalk^vavistagtm(I:gtm_char_t*,IO:gtm_char_t*,O:gtm_ulong_t*,O:gtm_char_t*)
+wpwalk: void wpwalk^vavistagtm(I:gtm_char_t*,IO:gtm_char_t*,O:gtm_ulong_t*,O:gtm_char_t*)

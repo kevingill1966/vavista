@@ -677,6 +677,46 @@ GTM_glwalk(PyObject *self, PyObject *args)
     return Py_BuildValue("sls", key_arg, data, value);
 }
 
+/*
+ * Order through a gl item. Return the next key, data, value(0)
+ *
+ * This is used for wp fields
+ */
+static PyObject*
+GTM_wpwalk(PyObject *self, PyObject *args)
+{
+    static ci_name_descriptor cmd;
+    static gtm_string_t cmd_s;
+    char *global_ref, *key;
+    char key_arg[MAXVAL];
+    long data;
+    char value[MAXVAL];
+
+    if (mstart() == NULL) return NULL;
+
+    if (!PyArg_ParseTuple(args, "ss", &global_ref, &key)) {
+        sprintf(msgbuf, "wpwalk requires a mumps global reference and the key");
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+
+    cmd_s.address = "wpwalk";
+    cmd_s.length = sizeof(cmd_s.address)-1;
+    cmd.rtn_name=cmd_s; 
+
+    strcpy(key_arg, key); /* mumps overwrites this so need a copy */
+
+    status = gtm_cip(&cmd, global_ref, key_arg, &data, value);
+
+    if (0 != status ) { 
+        gtm_zstatus(msgbuf, MAXMSG);
+        PyErr_SetString(GTMException, msgbuf);
+        return NULL;
+    }
+    return Py_BuildValue("sls", key_arg, data, value);
+}
+
+
 static PyObject*
 GTM_mkill(PyObject *self, PyObject *args)
 {
@@ -747,6 +787,7 @@ static PyMethodDef GTMMethods[] = {
     {"mdata",   GTM_mdata,   METH_VARARGS, "$data on variable."},
     {"mkill",   GTM_mkill,   METH_VARARGS, "kill a variable."},
     {"glwalk",   GTM_glwalk,   METH_VARARGS, "Order through a global."},
+    {"wpwalk",   GTM_wpwalk,   METH_VARARGS, "Order through a WP subfile."},
     {"tstart",   GTM_tstart,   METH_VARARGS, "Transaction begin."},
     {"tcommit",   GTM_tcommit,   METH_NOARGS, "Transaction commit."},
     {"trollback",   GTM_trollback,   METH_NOARGS, "Transaction rollback."},

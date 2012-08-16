@@ -1,4 +1,4 @@
-; M routines, based on work in the GT.M manual file gtmcip_gtmaccess.zip, and the pyGTMx python module. ; 8/16/12 6:07pm
+; M routines, based on work in the GT.M manual file gtmcip_gtmaccess.zip, and the pyGTMx python module. ; 8/16/12 8:38pm
 ;
 %vavistagtm  ; entry points to access GT.M
     write "vavistagtm entry point - see documentation for usage of this code"
@@ -58,6 +58,12 @@ ddwalk(s0,s1,s2,s3,s4)
 ; order through a global - return key, data, value for the next item
 glwalk(ref,key,data,value) ; Order through a global
     s key=$o(@ref@(key)),data=0 if key'="" set data=$data(@ref@(key)),value=$GET(@ref@(key))
+    quit:$quit 0 quit
+    ;
+
+; wp fields are in a subfile - but the value is a further level down.
+wpwalk(ref,key,data,value) ; Order through a global
+    s key=$o(@ref@(key)),data=0 if key'="" set data=$data(@ref@(key)),value=$GET(@ref@(key,0))
     quit:$quit 0 quit
     ;
 
