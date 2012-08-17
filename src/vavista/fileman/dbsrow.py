@@ -5,7 +5,7 @@
 """
 
 from vavista import M
-from vavista.fileman.dbsdd import FT_WP, DD
+from vavista.fileman.dbsdd import FT_WP, DD, FT_SUBFILE
 from shared import FilemanError
 from transaction import transaction_manager as transaction
 
@@ -341,7 +341,7 @@ class DBSRow(object):
             iens = self._iens
             fieldids = str(self._dd.parent_fieldid) + "*"
         else:
-            fieldids = "*"  # TODO: fieldids
+            fieldids = ";".join([k for (k,v) in self._fields.items() if v.fmql_type not in [FT_SUBFILE]])
             fileid = self._dd.fileid
             iens = self._iens
 
