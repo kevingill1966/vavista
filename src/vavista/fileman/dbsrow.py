@@ -599,9 +599,12 @@ class DBSRow(object):
         if fieldid is None:
             raise AttributeError(fieldname)
 
+        field_dd = self._dd.fields[fieldid]
+        glindex = field_dd.storage.split(';')[0]
+
         # get the file header from the subfile
         gl = self._dd.m_open_form()
-        header_gl = gl + str(self._rowid) + "," + str(fieldid) +",0)"
+        header_gl = gl + str(self._rowid) + "," + glindex +",0)"
         if M.Globals.from_closed_form(header_gl).exists():
             subfile_header = M.Globals.from_closed_form(header_gl).value
             filename, subfileid_with_flags, lastnum, rowcount = subfile_header.split("^")

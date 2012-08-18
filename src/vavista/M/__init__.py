@@ -231,7 +231,10 @@ class Global(object):
             s0 = self.path[0]
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
-        s1 = mget(s0)
+        try:
+            s1 = mget(s0)
+        except:
+            return None
         if s1:
             try:
                 s1 = s1.decode('utf-8')
