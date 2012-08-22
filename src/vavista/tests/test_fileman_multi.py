@@ -154,7 +154,8 @@ class TestMulti(unittest.TestCase):
         self.assertEquals(parent[0][2], "C")
 
         # Insert a subfile element
-        pymult.update(cursor.rowid, T1=["A","B","C","D"])
+        pymult.update(cursor.rowid, **{'T1': ["A","B","C","D"],
+                'T1->T2': ["AA","BB","CC","DD"]})
         transaction.commit()
 
         transaction.begin()
@@ -162,16 +163,18 @@ class TestMulti(unittest.TestCase):
         parent = cursor.next()
         self.assertEquals(len(parent[0]), 4)
         self.assertEquals(parent[0][-1], "D")
+        self.assertEquals(parent[1][-1], "DD")
 
         # delete an element
         # TODO: this functionality is not currently working.
-        pymult.update(cursor.rowid, T1=["A","B"])
+        pymult.update(cursor.rowid, **{'T1': ["A","B"],
+                'T1->T2': ["AA","BB"]})
         transaction.commit()
 
         cursor = pymult.traverser("B", " ")
         parent = cursor.next()
         self.assertEquals(len(parent[0]), 2)
-        self.assertNotEquals(parent[0][-1], "B")
+        self.assertEquals(parent[0][-1], "B")
 
 test_cases = (TestMulti, )
 

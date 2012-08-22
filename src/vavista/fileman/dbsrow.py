@@ -384,7 +384,6 @@ class DBSRow(object):
             raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
                 % (self._dd.filename, fileid, iens, fieldids), str(err))
 
-        #self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
         try:
             self._save_tmp_global()
         except Exception, e:
@@ -440,7 +439,6 @@ class DBSRow(object):
         self._stored_data = {}
 
         root = M.Globals[self._row_tmpid]
-        print root
 
         subfiles = {}
 
@@ -500,7 +498,7 @@ class DBSRow(object):
                 self._stored_data[fieldid] = sf_result = []
 
                 for iens, data in sf_data:
-                    sf_result.append(data[fieldid[1]])
+                    sf_result.append(data.get(fieldid[1]))
 
         self._changed = False
         self._changed_fields = []
@@ -578,11 +576,9 @@ class DBSRow(object):
             FDA_ROOT(FILE#,"IENS",FIELD#)="VALUE"
 
         """
-        subfile_rowcounts = {}
         subfile_sizes = {}
-        subfile_extensions = {}
-        subfile_deletions = {}
         self.adjust_subfiles = None
+        el_count = 0
 
         self._row_fdaid = row_fdaid = "fda%s" % id(self)
         fda = M.Globals[row_fdaid]
@@ -598,55 +594,32 @@ class DBSRow(object):
                     else:
                         assert 0, "could not resolve field %s" % field
                 if type(field) == tuple:
+                    if not self._rowid:
 
-                    # MULTIPLES
-                    #
-                    # Where the number in the multiple being updated is different from
-                    # the original, there are problems. Will have to do a delete/insert
-                    parent, child = field
-                    subfileid = parent.subfileid
-                    sf_fieldid = fieldid[1]
+                        # MULTIPLES - INSERT ONLY
+                        #
+                        # Create multiple values for inserts only
+                        # For updates we need to deal with the multiple in a second pass. 
+                        # This is because the Parent File update does not handle appends/deletes
+                        # to/from the subfile.
 
-                    # Ensure that updates / inserts to a subfile on multiple keys, use
-                    # the same key lengths for each
-                    if fieldid[0] in subfile_sizes:
-                        if len(value) != subfile_sizes[fieldid[0]]:
-                            raise FilemanError("Insert/Update - subfile entry sizes for subfile %s do not match" % subfileid)
+                        parent, child = field
+                        subfileid = parent.subfileid
+                        sf_fieldid = fieldid[1]
 
-                    subfile_sizes[fieldid[0]] = len(value)
-                    if self._rowid:
-                        # If the value is longer than the current value
-                        # in the sub-file, the extra values cannot be added
-                        # in the update. A subsequent insert must be used.
-                        #sfdd = DD(fieldid[0],
-                        #def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):
-                        import pdb; pdb.set_trace()
-                        if fieldid[0] in subfile_rowcounts:
-                            rowcount = subfile_rowcounts[fieldid[0]]
-                        else:
-                            sfdd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid[0])
-                            cf = sfdd._gl + "%s,0)" % self._rowid
-                            sf_header = M.Globals.from_closed_form(cf).value
-                            rowcount = sf_header.split("^")[3]
-                            if rowcount == '':
-                                subfile_rowcounts[fieldid[0]] = rowcount = 0
+                        # the same key lengths for each
+                        if fieldid[0] in subfile_sizes:
+                            if len(value) != subfile_sizes[fieldid[0]]:
+                                raise FilemanError("Insert/Update - subfile entry sizes for subfile %s do not match" % subfileid)
+
+                        subfile_sizes[fieldid[0]] = len(value)
+                        for sf_rowid, row in enumerate(value):
+                            sf_iens = "%d,%s," % (sf_rowid+1, self._rowid)
+                            if self._internal:
+                                fda[subfileid][sf_iens][sf_fieldid].value = row
                             else:
-                                subfile_rowcounts[fieldid[0]] = rowcount = int(rowcount)
-
-                        if rowcount < len(value):
-                            if fieldid[0] not in subfile_extensions:
-                                subfile_extensions[fieldid[0]] = []
-                            subfile_extensions[fieldid[0]].append((fieldid, value[rowcount:]))
-                            value = value[:rowcount]
-                        elif rowcount > len(value):
-                            subfile_deletions[fieldid[0]] = len(value) - rowcount
-
-                    for sf_rowid, row in enumerate(value):
-                        sf_iens = "%d,%s," % (sf_rowid+1, self._rowid)
-                        if self._internal:
-                            fda[subfileid][sf_iens][sf_fieldid].value = row
-                        else:
-                            fda[subfileid][sf_iens][sf_fieldid].value = row
+                                fda[subfileid][sf_iens][sf_fieldid].value = row
+                            el_count += 1
 
                 elif field.fmql_type in [FT_WP]:
                     # WP Fields
@@ -662,6 +635,7 @@ class DBSRow(object):
                         base[str(i+1)].value = line
 
                     fda[fileid][iens][fieldid].value = base.closed_form
+                    el_count += 1
 
                 else:
                     if self._internal:
@@ -670,17 +644,16 @@ class DBSRow(object):
                         mvalue = field.pyto_external(value)
                     field.validate_insert(mvalue, self._internal)
                     fda[fileid][iens][fieldid].value = mvalue
+                    el_count += 1
         else:
             for fieldid in self._changed_fields:
                 fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
+                el_count += 1
 
-        if subfile_extensions or subfile_deletions:
-            # only affects update
-            print subfile_extensions
-            print subfile_deletions
-            self.adjust_subfiles = (subfile_extensions, subfile_deletions)
-
-        return row_fdaid
+        if el_count:
+            return row_fdaid
+        else:
+            return None
 
     def _insert(self, values=None):
         """
@@ -738,53 +711,193 @@ class DBSRow(object):
 
             TODO: dbsdd validation for fields
         """
-        M.Globals["ERR"].kill()
-
         # Create an FDA format array for fileman
         fdaid = self._create_fda(values)
 
-        # Flags:
-        # E - use external formats
-        # K - lock the record
-        # S - do not clear the row global
-        # T - verify the data
-        #TODO: I want to do validation, but use internal format throughout
+        if fdaid:
+            M.Globals["ERR"].kill()
+
+            # Flags:
+            # E - use external formats
+            # K - lock the record
+            # S - do not clear the row global
+            # T - verify the data
+            #TODO: I want to do validation, but use internal format throughout
+            if self._internal:
+                flags = ""
+            else:
+                flags = "ET"
+            M.proc("FILE^DIE", flags, fdaid, "ERR")
+
+            # Check for error
+            err = M.Globals["ERR"]
+            if err.exists():
+                raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+
+        # If there are subfiles, these will have to be processed.
+        subfiles = set([x[0] for x in values.keys() if type(x) == tuple])
+        if len(subfiles) > 0:
+            for subfile in subfiles:
+                self._update_subfile(subfile, [(x, values[x]) for x in values.keys() if type(x) == tuple])
+
+    def _update_subfile(self, fieldid, sf_new_values):
+        """
+            Updating a subfile. This may involve inserting / deleting or just updating the data.
+        """
+        # Step 1 - retrieve the existing data and compare.
+        subfile_dd = self._dd.fields[fieldid].dd
+
+        M.Globals["ERR"].kill()
+
+        flags = ''
         if self._internal:
-            flags = ""
-        else:
-            flags = "ET"
-        M.proc("FILE^DIE", flags, fdaid, "ERR")
+            flags = flags + "I"
+
+        fileid = self._dd.fileid
+        iens = self._iens
+        fieldids = str(fieldid) + "*"
+
+        tmpid = self._row_tmpid + str(fieldid)
+
+        M.proc("GETS^DIQ",
+            fileid,              # numeric file id
+            iens,                # IENS
+            fieldids,            # Fields to return 
+            flags,               # Flags N=no nulls, R=return field names
+            tmpid,
+            "ERR")
 
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
-                % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+            raise FilemanError("""DBSRow._retrieve_subfile() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
+                % (self._dd.filename, fileid, iens, fieldids), str(err))
 
-        # TODO: This logic is wrong. It assumes that the subfile records are contiguous.
-        #       Instead, I should wipe the subfiles and insert them every time.
-        if self.adjust_subfiles:
-            (subfile_extensions, subfile_deletions) = self.adjust_subfiles 
-            for key, value in subfile_extensions.items():
-                self._extend_subfile(key, value)
-            for key, value in subfile_deletions.items():
-                self._contract_subfile(key, value)
+        # Extract the result and store in rows.
+        subfile_data = M.Globals[tmpid][subfile_dd._fileid]
+
+        sf_live_data = []
+        for iens in [r[0] for r in subfile_data.keys_with_decendants()]:
+            row = subfile_data[iens]
+            if self._internal:
+                row_fieldids = [x[0] for x in row.keys_with_decendants()]
+                row_data = dict([(x, row[x]['I'].value) for x in row_fieldids])
+            else:
+                row_fieldids = row.keys()
+                row_data = dict([(x, row[x].value) for x in row_fieldids])
+            sf_live_data.append((iens, row_data))
+
+        # Convert the new data to the same format
+        sf_new_data=[]
+        for (f_fieldid, sf_fieldid), values in sf_new_values[:1]:
+            for i, value in enumerate(values):
+                iens = '%d,%s' % (i+1, self._rowid)
+                d = (iens, {sf_fieldid: value})
+                sf_new_data.append(d)
+
+        for (f_fieldid, sf_fieldid), values in sf_new_values[1:]:
+            for i, value in enumerate(values):
+                sf_new_data[i][1][sf_fieldid] = value
+
+        # Now we have the rows on the database. For each row, we are going
+        # to update, or delete it.
+        fdaid = "fda%s" % id(self)
+        fda = M.Globals[fdaid]
+        fda.kill()
+        sf_fda = fda[subfile_dd._fileid]
+
+        # Pass 1 - updates
+        do_update = False
+        for i in range(len(sf_live_data)):
+            if i < len(sf_new_data):
+                sf_iens, row_data = sf_live_data[i]
+                n_iens, n_row_data = sf_new_data[i]
+                if row_data != n_row_data:
+                    # need to do an update
+                    for f,v in n_row_data.items():
+                        sf_fda[sf_iens][f].value = v
+                        do_update = True
+
+        if do_update:
+            M.Globals["ERR"].kill()
+
+            # Flags:
+            # E - use external formats
+            # K - lock the record
+            # S - do not clear the row global
+            # T - verify the data
+            #TODO: I want to do validation, but use internal format throughout
+            if self._internal:
+                flags = ""
+            else:
+                flags = "ET"
+            M.proc("FILE^DIE", flags, fdaid, "ERR")
+
+            # Check for error
+            err = M.Globals["ERR"]
+            if err.exists():
+                raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+
+        # Pass 2 - inserts
+        if len(sf_new_data) > len(sf_live_data):
+            inserts = sf_new_data[len(sf_live_data):]
+            fda.kill()
+            sf_fda = fda[subfile_dd._fileid]
+            for i, (iens, row) in enumerate(inserts):
+                sf_iens = '+1,%s,' % self._rowid
+                for f,v in row.items():
+                    sf_fda[sf_iens][f].value = v
+
+            M.Globals["ERR"].kill()
+
+            # Flags:
+            # E - use external formats
+            # S - do not clear the row global
+            if self._internal:
+                flags = ""
+            else:
+                flags = "E"
+
+            ienid = "ien%s" % id(self)
+            M.proc("UPDATE^DIE", flags , fdaid, ienid, "ERR")
+
+            # Check for error
+            err = M.Globals["ERR"]
+            if err.exists():
+                raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+                
+        # pass 3 - deletes
+        elif len(sf_new_data) < len(sf_live_data):
+            deletes = sf_live_data[len(sf_new_data):]
+
+            M.Globals["Y"].kill()
+            for iens, data in deletes:
+
+                # Generate a DA structure for a multiple.
+                # see manual, P 2-58
+                parts = [x for x in iens.split(",") if x]
+                M.Globals["DA"].value = parts[0]
+                for i, part in enumerate(parts[1:]):
+                    M.Globals["DA"][i+1].value = part
+
+                M.Globals["DIK"].value = self._dd.m_open_form() + "%s,%s," % (self._rowid, parts[-1])
+                M.Globals["DA"][i+2].value = self._rowid
+
+                M.proc("^DIK")
+                if M.Globals["Y"] == "-1":
+                    # I don't know where to look for the error message - Classic API
+                    # Sets the flag, but no variables set
+
+                    # This may just mean that the record does not exist
+                    raise FilemanError("""DBSRow.delete() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                        % (self._dd.filename, self._dd.fileid, self._rowid))
+
 
     def __repr__(self):
         return "<%s.%s %s, rowid=%s>" % (self.__class__.__module__, self.__class__.__name__, self._dd.filename, self._rowid)
-
-    def _extend_subfile(self, fieldid, values):
-        """
-            Add new records to an existing subfile.
-            values is a list if (fieldid, sf_fieldid), value tuples
-        """
-        import pdb; pdb.set_trace()
-
-    def _contract_subfile(self, fieldid, count):
-        """
-            delete records from an existing subfile.
-        """
-        import pdb; pdb.set_trace()
 
     def delete(self):
         """
