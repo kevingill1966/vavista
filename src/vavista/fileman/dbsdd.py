@@ -55,7 +55,6 @@ Type Spec : all fields are optional.
 """
 
 import datetime
-import math
 
 from vavista import M
 
@@ -181,7 +180,7 @@ class Field(object):
         """
         raise FilemanError("""No Foreign File for this class""", self.__class__)
 
-    def validate_insert(self, s):
+    def validate_insert(self, s, internal=True):
         """
             Mandatory field checking.
         """
@@ -316,7 +315,7 @@ class FieldNumeric(Field):
     def pyto_external(self, s):
         return self.pyto_internal(s)
 
-    def validate_insert(self, s):
+    def validate_insert(self, s, internal=True):
         """
             Verify that the code is a valid code.
 
@@ -328,7 +327,7 @@ class FieldNumeric(Field):
             False
 
         """
-        super(FieldNumeric, self).validate_insert(s)  # mandatory check
+        super(FieldNumeric, self).validate_insert(s, internal)  # mandatory check
         if s:
             try:
                 float(s)
@@ -352,11 +351,11 @@ class FieldSet(Field):
     def c_isa(cls, flags):
         return flags and flags[0] == 'S'
 
-    def validate_insert(self, s):
+    def validate_insert(self, s, internal=True):
         """
             Verify that the code is a valid code.
         """
-        super(FieldSet, self).validate_insert(s)  # mandatory check
+        super(FieldSet, self).validate_insert(s, internal)  # mandatory check
         if s not in [d[0] for d in self.details]:
             valid = []
             for k,v in self.details:
@@ -433,6 +432,7 @@ class FieldPointer(Field):
     laygo = True
 
     _ffile = None
+    _dd = None
 
     @classmethod
     def c_isa(cls, flags):
@@ -446,27 +446,58 @@ class FieldPointer(Field):
             self.laygo = False
             self.foreign_fileid = self.foreign_fileid[:-1]
 
-    def foreign_get(self, s, internal=True):
+    def foreign_get(self, s, internal=True, fieldnames=None):
         """
             Retrieve a remote record using a Pointer type
         """
-        if self._ffile is None:
+        if self._ffile and not fieldnames:
+            ff = self._ffile
+        else:
+            # cannot use the cached version, as it may not consistent fieldnames
             from vavista.fileman.dbsfile import DBSFile
-            dd = DD(self.foreign_fileid)
-            self._ffile = DBSFile(dd, internal=internal)
-        return self._ffile.get(s)
+            ff = DBSFile(self._dd, internal=internal, fieldnames=fieldnames)
+            if not fieldnames:
+                self._ffile = ff
+        return ff.get(s)
 
-    def validate_insert(self, s):
+    @property
+    def dd(self):
+        if self._dd is None:
+            self._dd = DD(self.foreign_fileid)
+        return self._dd
+
+    def validate_insert(self, s, internal=True):
         """
             Prevent insert if remote record does not exist.
+
+            This is important since we are using internal format
         """
-        super(FieldPointer, self).validate_insert(s)  # mandatory check
-        if s:
-            file_dd = DD(self.foreign_fileid)
-            remote_gl = file_dd.m_open_form()
+        super(FieldPointer, self).validate_insert(s, internal)  # mandatory check
+        if s and internal: # external validated via pyto_exernal()
+            remote_gl = self.dd.m_open_form()
             cf = remote_gl + str(s) + ")"
             if not M.Globals.from_closed_form(cf).exists():
                 raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
+
+    def pyto_external(self, s):
+        """
+            I need to retrieve the remote record, so that fileman can un-retrieve it !!!
+        """
+        if s:
+            remote_gl = self.dd.m_open_form()
+            cf = remote_gl + str(s) + ")"
+            g = M.Globals.from_closed_form(cf)
+            if not g.exists():
+                raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
+            value = g[0].value
+            s = value.split("^", 1)[0]
+        return s
+
+    def pyto_internal(self, s):
+        """
+
+        """
+        return s
 
 class FieldVPointer(Field):
     """
@@ -531,7 +562,7 @@ class FieldVPointer(Field):
         remote_gl = self.remotefiles[ref][5]
         return "%s;%s" % (key, remote_gl[1:])
 
-    def validate_insert(self, s):
+    def validate_insert(self, s, internal=True):
         """
             Verify that an insert / modify attempt is valid. 
 
@@ -542,7 +573,7 @@ class FieldVPointer(Field):
             For efficiency, generate the closed form of the target, and look-up
             based on that, rather than navigating via a file.
         """
-        super(FieldVPointer, self).validate_insert(s)  # mandatory check
+        super(FieldVPointer, self).validate_insert(s, internal)  # mandatory check
         if s:
             key, remote_gl = s.split(";", 1)
 
@@ -550,7 +581,7 @@ class FieldVPointer(Field):
             if not M.Globals.from_closed_form(cf).exists():
                 raise FilemanError("""Remote record [%s] does not exist. Missing global=[%s]""" % (s, cf))
 
-    def foreign_get(self, s, internal=True):
+    def foreign_get(self, s, internal=True, fieldnames=None):
         """
             Retrieve a remote record using a VPointer type
 
@@ -560,12 +591,16 @@ class FieldVPointer(Field):
         """
         ref, key = s.split(".", 1)
 
-        if ref not in self._ffile:
+        if ref in self._ffile and not fieldnames:
+            ffile = self._ffile[ref]
+        else:
             from vavista.fileman.dbsfile import DBSFile
             foreign_fileid = self.remotefiles[ref][0]
             dd = DD(foreign_fileid)
-            self._ffile[ref] = DBSFile(dd, internal=internal)
-        return self._ffile[ref].get(key)
+            ffile = DBSFile(dd, internal=internal, fieldnames=fieldnames)
+            if not fieldnames:
+                self._ffile[ref] = ffile
+        return ffile.get(key)
 
 class FieldMUMPS(Field):
     fmql_type = FT_MUMPS
@@ -574,16 +609,18 @@ class FieldMUMPS(Field):
     def c_isa(cls, flags):
         return flags and flags[0] == 'K'
 
-    def validate_insert(self, s):
+    def validate_insert(self, s, internal=True):
         """
             No need to validate the mumps code here. It is validated 
             via the low-level DBS code on a commit.
         """
-        super(FieldMUMPS, self).validate_insert(s)  # mandatory check
+        super(FieldMUMPS, self).validate_insert(s, internal)  # mandatory check
         pass
 
 class FieldSubfile(Field):
     fmql_type = FT_SUBFILE
+    _dd = None
+    _subfileid = None
 
     @classmethod
     def c_isa(cls, flags):
@@ -595,6 +632,25 @@ class FieldSubfile(Field):
             s0, = M.func("$$VFILE^DILFD", n)
             return s0 != "0"
         return False
+
+    @property
+    def subfileid(self):
+        if self._subfileid == None:
+            rv = ""
+            for c in self._fieldinfo[1]:
+                if c in "0123456789.":
+                    rv = rv + c
+                else:
+                    break
+            self._subfileid = rv
+        return self._subfileid
+
+    @property
+    def dd(self):
+        if self._dd is None:
+            self._dd = DD(self.subfileid)
+        return self._dd
+
 
 # Simple lookup mechanism for parsing fields
 FIELD_TYPES = [FieldText, FieldDatetime, FieldNumeric, FieldSet, FieldWP, FieldPointer,
@@ -609,6 +665,31 @@ class Index(object):
     def __str__(self):
         return "Index(%s) on table %s, columns %s" % (self.name, self.table, self.columns)
 
+class AttrResolver:
+    """
+        A name "T1" maps to a file field
+        A name "T1->T2" maps to a subfile field
+    """
+    def __init__(self, dd):
+        self._dd = dd
+    def __getitem__(self, k):
+        if k.find("->") == -1:
+            res = self._dd.fieldnames[k]
+            if self._dd.fields[res].fmql_type == FT_SUBFILE:
+                return (res, ".01")
+            else:
+                return res
+        f_field, sf_field = k.split('->')
+        f_field = self._dd.fieldnames[f_field]
+        dd = self._dd.fields[f_field].dd
+        sf_field = dd.attrs[sf_field]
+        return (f_field, sf_field)
+    def get(self, k, default=None):
+        try:
+            return self.__getitem__(k)
+        except:
+            return default
+
 class _DD(object):
     """
         Load the data dictionary for a FILE
@@ -617,7 +698,8 @@ class _DD(object):
     _gl = None
     _indices = _fields = None
     filename = None
-    attrs = None
+    fieldnames = None
+    _attrs = None
     parent_dd = None
     parent_fieldid = None
 
@@ -628,7 +710,7 @@ class _DD(object):
         """
 
         # the filename cound be a file number - if it starts with a a numeric
-        if filename[0] in "0123456789":
+        if filename[0] in ".0123456789":
             self._fileid = fileid = filename
             if parent_dd:
                 self.parent_dd = parent_dd
@@ -714,8 +796,15 @@ class _DD(object):
         from vavista.fileman import connect
         c = connect("0","")
         f = c.get_file("INDEX")
-        rv = []
         return list(f.traverser("B", from_value=self.fileid, to_value=self.fileid))
+
+    @property
+    def attrs(self):
+        """name/id map"""
+        if self._attrs is None:
+            self._init_fields()
+            self._attrs = AttrResolver(self)
+        return self._attrs
 
     @property
     def fields(self):
@@ -723,9 +812,17 @@ class _DD(object):
             Return information about the dd fields
         """
         if self._fields is None:
+            self._init_fields()
+        return self._fields
+
+    def _init_fields(self):
+        """
+            Return information about the dd fields
+        """
+        if self._fields is None:
             M.mset('U', "^") # DBS Calls Require this
             f = self._fields = {}
-            attrs = self.attrs = {}
+            attrs = self.fieldnames = {}
             fieldid = "0"
             while 1:
                 # Subscript 0 is field description, .1 is the title, 3 is help
@@ -795,7 +892,9 @@ def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):
     """
         Simple mechanism to cache DD objects.
     """
-    if filename not in cache:
+    dd = cache.get(filename)
+
+    if dd is None or (parent_dd and parent_fieldid and (dd.parent_dd != parent_dd or parent_fieldid != dd.parent_fieldid)):
         file_dd = _DD(filename, parent_dd=parent_dd, parent_fieldid=parent_fieldid)
         cache[file_dd.fileid] = file_dd
         if file_dd.filename:

@@ -105,49 +105,48 @@ class TestSets(unittest.TestCase):
             Validate the data which was in the file. This data
             was created via FILEMAN.
         """
-        pytest4 = self.dbs.get_file("PYTEST4", internal=True)
+        pytest4 = self.dbs.get_file("PYTEST4", internal=True,
+                fieldnames=["GENDER", "NUMBERS", "YESNO"])
         cursor = pytest4.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec.GENDER, "M")
-        self.assertEqual(rec.NUMBERS, "8")
-        self.assertEqual(rec.YESNO, "Y")
+        self.assertEqual(rec[0], "M")
+        self.assertEqual(rec[1], "8")
+        self.assertEqual(rec[2], "Y")
 
-        pytest4 = self.dbs.get_file("PYTEST4", internal=False)
+        pytest4 = self.dbs.get_file("PYTEST4", internal=False,
+            fieldnames=["GENDER", "NUMBERS", "YESNO"])
         cursor = pytest4.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec.GENDER, "MALE")
-        self.assertEqual(rec.NUMBERS, "EIGHT")
-        self.assertEqual(rec.YESNO, "YES")
+        self.assertEqual(rec[0], "MALE")
+        self.assertEqual(rec[1], "EIGHT")
+        self.assertEqual(rec[2], "YES")
 
     def test_write(self):
-        pytest4 = self.dbs.get_file("PYTEST4", internal=True)
+        pytest4 = self.dbs.get_file("PYTEST4", internal=True,
+            fieldnames=["GENDER", "NUMBERS", "YESNO"])
         transaction.begin()
-        rec = pytest4.new()
-        rec.NAME = "Insert Internal"
-        rec.GENDER = "F"
-        rec.NUMBERS = "4"
-        rec.YESNO = "N"
+        rowid = pytest4.insert(NAME="Insert Internal", GENDER="F", NUMBERS="4", YESNO="N")
         transaction.commit()
 
         cursor = pytest4.traverser("B", "Insert Internal")
         rec = cursor.next()
 
-        self.assertEqual(rec.GENDER, "F")
-        self.assertEqual(rec.NUMBERS, "4")
-        self.assertEqual(rec.YESNO, "N")
+        self.assertEqual(rec[0], "F")
+        self.assertEqual(rec[1], "4")
+        self.assertEqual(rec[2], "N")
 
         # Check validation
         transaction.begin()
         try:
-            rec.GENDER = "UNKNOWN"
+            rowid = pytest4.update(rowid, GENDER="UNKNOWN")
             transaction.commit()
         except FilemanError, e:
             transaction.abort()
 
-        rec = pytest4.get(rec._rowid)
-        self.assertEqual(rec.GENDER, "F")
+        rec = pytest4.get(rowid)
+        self.assertEqual(rec[0], "F")
 
     def test_indexing(self):
         """

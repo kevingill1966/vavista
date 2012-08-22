@@ -129,19 +129,21 @@ class TestDatetime(unittest.TestCase):
         dd = self.dbs.dd("PYTEST2")
         self.assertEqual(dd.fileid, "9999904")
 
-        pytest2 = self.dbs.get_file("PYTEST2", internal=True)
+        pytest2 = self.dbs.get_file("PYTEST2", internal=True,
+                fieldnames = ["DATE1", "DATETIME1", "DATETIME2"])
         cursor = pytest2.traverser("B", "e")
         rec = cursor.next()
-        self.assertEquals(rec.DATE1, datetime.date(2012,7,20))
-        self.assertEquals(rec.DATETIME1, datetime.datetime(2012,7,20,11,1,2))
-        self.assertEquals(rec.DATETIME2, datetime.datetime(2012,7,20,11,1,2))
+        self.assertEquals(rec[0], datetime.date(2012,7,20))
+        self.assertEquals(rec[1], datetime.datetime(2012,7,20,11,1,2))
+        self.assertEquals(rec[2], datetime.datetime(2012,7,20,11,1,2))
 
-        pytest2 = self.dbs.get_file("PYTEST2", internal=False)
+        pytest2 = self.dbs.get_file("PYTEST2", internal=False,
+                fieldnames = ["DATE1", "DATETIME1", "DATETIME2"])
         cursor = pytest2.traverser("B", "e")
         rec = cursor.next()
-        self.assertEquals(rec.DATE1, datetime.date(2012,7,20))
-        self.assertEquals(rec.DATETIME1, datetime.datetime(2012,7,20,11,1,2))
-        self.assertEquals(rec.DATETIME2, datetime.datetime(2012,7,20,11,1,2))
+        self.assertEquals(rec[0], datetime.date(2012,7,20))
+        self.assertEquals(rec[1], datetime.datetime(2012,7,20,11,1,2))
+        self.assertEquals(rec[2], datetime.datetime(2012,7,20,11,1,2))
 
 
     def test_readwrite(self):
@@ -149,21 +151,20 @@ class TestDatetime(unittest.TestCase):
             Verify that we can write dates and times and read them back.
             Check both internal and external formats.
         """
-        int_pytest2 = self.dbs.get_file("PYTEST2")
+        int_pytest2 = self.dbs.get_file("PYTEST2",
+                fieldnames = ["NAME", "DATE1", "DATETIME1", "DATETIME2"])
         transaction.begin()
-        record = int_pytest2.new()
-        record.NAME = 'Test Internal Dates'
-        record.DATE1 = datetime.date(2012,1,2)
-        record.DATETIME1 = datetime.datetime(2012,1,2,3,4,5)
-        record.DATETIME2 = datetime.datetime(2012,1,2,3,4,5)
+        rowid = int_pytest2.insert(NAME='Test Internal Dates', DATE1=datetime.date(2012,1,2),
+            DATETIME1=datetime.datetime(2012,1,2,3,4,5), DATETIME2=datetime.datetime(2012,1,2,3,4,5))
         transaction.commit()
 
-        cursor = int_pytest2.traverser("B", "Test Internal Dates")
+        cursor = int_pytest2.traverser("B", "Test Internal Dates") 
+
         rec = cursor.next()
-        self.assertEqual(str(rec.NAME), "Test Internal Dates")
-        self.assertEquals(rec.DATE1, datetime.date(2012,1,2))
-        self.assertEquals(rec.DATETIME1, datetime.datetime(2012,1,2,3,4,5))
-        self.assertEquals(rec.DATETIME2, datetime.datetime(2012,1,2,3,4,5))
+        self.assertEqual(str(rec[0]), "Test Internal Dates")
+        self.assertEquals(rec[1], datetime.date(2012,1,2))
+        self.assertEquals(rec[2], datetime.datetime(2012,1,2,3,4,5))
+        self.assertEquals(rec[3], datetime.datetime(2012,1,2,3,4,5))
 
     def test_indexing(self):
         """

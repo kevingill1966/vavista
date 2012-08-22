@@ -95,8 +95,7 @@ class TestComputed(unittest.TestCase):
 
         pytest = self.dbs.get_file("PYTEST7")
         transaction.begin()
-        record = pytest.new()
-        record.NAME = 'Test Insert'
+        rowid = pytest.insert(NAME = 'Test Insert')
         transaction.commit()
 
         # The low-level traverser, walks index "B", on NAME field
@@ -105,14 +104,14 @@ class TestComputed(unittest.TestCase):
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "Test Insert")
-        self.assertEqual(str(rec.C1), "100")
+        self.assertEqual(rec[0], "Test Insert")
+        self.assertEqual(rec[1], "100")
 
         # Attempt to update the field
         e = None
         transaction.begin()
         try:
-            rec.C1 = "200"
+            pytest.update(rowid, C1="200")
             transaction.commit()
         except FilemanError, e1:
             transaction.abort()

@@ -126,22 +126,22 @@ class TestWP(unittest.TestCase):
             Validate the data which was in the file. This data
             was created via FILEMAN.
         """
-        pytest5 = self.dbs.get_file("PYTEST5", internal=True)
+        pytest5 = self.dbs.get_file("PYTEST5", internal=True, fieldnames=['WP1'])
         cursor = pytest5.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec.WP1, '\n'.join(["This is text entered via the line editor.",
+        self.assertEqual(rec[0], '\n'.join(["This is text entered via the line editor.",
             "This is another line.",
             "This is a long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, l",
             "ong, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, ",
             "long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long,",
             " long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long line"]))
 
-        pytest5 = self.dbs.get_file("PYTEST5", internal=False)
+        pytest5 = self.dbs.get_file("PYTEST5", internal=False, fieldnames=['WP1'])
         cursor = pytest5.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec.WP1, '\n'.join(["This is text entered via the line editor.",
+        self.assertEqual(rec[0], '\n'.join(["This is text entered via the line editor.",
             "This is another line.",
             "This is a long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, l",
             "ong, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, long, ",
@@ -155,20 +155,17 @@ class TestWP(unittest.TestCase):
             TODO: Verify UTF8
             TODO: Convert WP type to a string. The list is not Pythonic
         """
-        pytest5 = self.dbs.get_file("PYTEST5", internal=True)
+        pytest5 = self.dbs.get_file("PYTEST5", internal=True, fieldnames=['NAME', 'WP1', 'WP2'])
         transaction.begin()
-        rec = pytest5.new()
-        rec.NAME = "Insert Internal"
-        rec.WP1 = '\n'.join([u"line 1", u"line 2", u"line 3"])
-        rec.WP2 = '\n'.join([u"2 line 1", u"2 line 2", u"2 line 3"])
+        rowid = pytest5.insert(NAME="Insert Internal", WP1='\n'.join([u"line 1", u"line 2", u"line 3"]),
+            WP2='\n'.join([u"2 line 1", u"2 line 2", u"2 line 3"]))
         transaction.commit()
 
         cursor = pytest5.traverser("B", "Insert Internal")
         rec = cursor.next()
-        self.assertEqual(str(rec.NAME), "Insert Internal")
-
-        self.assertEqual(rec.WP1, '\n'.join([u"line 1", u"line 2", u"line 3"]))
-        self.assertEqual(rec.WP2, '\n'.join([u"2 line 1", u"2 line 2", u"2 line 3"]))
+        self.assertEqual(rec[0], "Insert Internal")
+        self.assertEqual(rec[1], '\n'.join([u"line 1", u"line 2", u"line 3"]))
+        self.assertEqual(rec[2], '\n'.join([u"2 line 1", u"2 line 2", u"2 line 3"]))
 
     def test_indexing(self):
         """

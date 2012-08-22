@@ -41,7 +41,7 @@ class DBS(object):
                 rv.append((name, s0))
         return rv
 
-    def get_file(self, name, internal=True, fieldids=None):
+    def get_file(self, name, internal=True, fieldids=None, fieldnames=None):
         """
             Look up the ^DIC array and find the file number for the specified file, 
             e.g. FILE = 1 - result is a string.
@@ -49,7 +49,7 @@ class DBS(object):
         dd = DD(name)
         if dd.fileid is None:
             raise FilemanError("""DBS.get_file() : File not found [%s]""" % name)
-        return DBSFile(dd, internal=internal, fieldids=fieldids)
+        return DBSFile(dd, internal=internal, fieldids=fieldids, fieldnames=fieldnames)
 
     def dd(self, name):
         """

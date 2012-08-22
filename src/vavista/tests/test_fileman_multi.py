@@ -1,11 +1,13 @@
 
 """
-    For subfile, provide a simple cursor concept on the rows.
+    For subfiles, the values are returned as fields in the main file.
+    if the subfile contains one field, it is a multiple value in the
+    main file.
 """
 
 import unittest
 
-from vavista.fileman import connect, transaction, FilemanError
+from vavista.fileman import connect, transaction
 from vavista.M import Globals
 
 class TestMulti(unittest.TestCase):
@@ -31,13 +33,14 @@ class TestMulti(unittest.TestCase):
         ('^DIZ(9999940,0)', 'PYMULT1^9999940^1^1'),
         ('^DIZ(9999940,1,0)', 'ONE'),
         ('^DIZ(9999940,1,1,0)', '^9999940.01^3^3'),   # subfile
-        ('^DIZ(9999940,1,1,1,0)', '1'),               # subfile
-        ('^DIZ(9999940,1,1,2,0)', '2'),               # subfile
-        ('^DIZ(9999940,1,1,3,0)', '3'),               # subfile
+        ('^DIZ(9999940,1,1,1,0)', '1^a'),               # subfile
+        ('^DIZ(9999940,1,1,2,0)', '2^b'),               # subfile
+        ('^DIZ(9999940,1,1,3,0)', '3^c'),               # subfile
         ('^DIZ(9999940,1,1,"B",1,1)', ''),            # subfile index
         ('^DIZ(9999940,1,1,"B",2,2)', ''),            # subfile index
         ('^DIZ(9999940,1,1,"B",3,3)', ''),            # subfile index
         ('^DIZ(9999940,"B","ONE",1)', ''),
+
     ]
 
     DD = [
@@ -71,9 +74,20 @@ class TestMulti(unittest.TestCase):
         ('^DD(9999940.01,.01,1,1,2)', 'K ^DIZ(9999940,DA(1),1,"B",$E(X,1,30),DA)'),
         ('^DD(9999940.01,.01,3)', 'Answer must be 1-10 characters in length.'),
         ('^DD(9999940.01,.01,"DT")', '3120810'),
+
+        ('^DD(9999940.01,1,0)', 'T2^MF^^0;2^K:$L(X)>10!($L(X)<1) X'),
+        ('^DD(9999940.01,1,1,0)', '^.1'),
+        ('^DD(9999940.01,1,1,1,0)', '9999940.01^B'),
+        ('^DD(9999940.01,1,1,1,1)', 'S ^DIZ(9999940,DA(1),1,"B",$E(X,1,30),DA)=""'),
+        ('^DD(9999940.01,1,1,1,2)', 'K ^DIZ(9999940,DA(1),1,"B",$E(X,1,30),DA)'),
+        ('^DD(9999940.01,1,3)', 'Answer must be 1-10 characters in length.'),
+        ('^DD(9999940.01,1,"DT")', '3120810'),
+
         ('^DD(9999940.01,"B","T1",.01)', ''),
+        ('^DD(9999940.01,"B","T2",1)', ''),
         ('^DD(9999940.01,"GL",0,1,.01)', ''),
         ('^DD(9999940.01,"IX",.01)', ''),
+
     ]
 
     IX = [
@@ -97,9 +111,6 @@ class TestMulti(unittest.TestCase):
         Globals.deserialise(self.IX)
         transaction.commit()
 
-        # Are indices setup
-        dd = self.dbs.dd("PYMULTI1")
-
     def setUp(self):
         self.dbs = connect("0", "")
 
@@ -116,50 +127,51 @@ class TestMulti(unittest.TestCase):
         """
             Load the record. Then get a cursor for the sub-file.
         """
-        pymult = self.dbs.get_file("PYMULT1")
+        pymult = self.dbs.get_file("PYMULT1", fieldnames=['T1', "T1->T2"])
 
         cursor = pymult.traverser("B", " ")
         parent = cursor.next()
 
         # Given the parent record, now traverse the children
-        cursor2 = parent.subfile_cursor("T1")
-        cursor2 = list(cursor2)
+        self.assertEquals(parent[0][0], "1")
+        self.assertEquals(parent[0][1], "2")
+        self.assertEquals(parent[0][2], "3")
 
-        self.assertEquals(cursor2[0].T1, "1")
-        self.assertEquals(cursor2[1].T1, "2")
-        self.assertEquals(cursor2[2].T1, "3")
+        self.assertEquals(parent[1][0], "a")
+        self.assertEquals(parent[1][1], "b")
+        self.assertEquals(parent[1][2], "c")
 
         # Verify update of a subfile element
         transaction.begin()
-        cursor2[0].T1 = '44'
+        pymult.update(cursor.rowid, T1=["A","B","C"])
         transaction.commit()
 
-        cursor2 = parent.subfile_cursor("T1")
-        cursor2 = list(cursor2)
-        self.assertEquals(cursor2[0].T1, "44")
-        self.assertEquals(len(cursor2), 3)
+        transaction.begin()
+        cursor = pymult.traverser("B", " ")
+        parent = cursor.next()
+        self.assertEquals(parent[0][0], "A")
+        self.assertEquals(parent[0][1], "B")
+        self.assertEquals(parent[0][2], "C")
 
         # Insert a subfile element
-        transaction.begin()
-        row = parent.subfile_new("T1")
-        row.T1 = "55"
+        pymult.update(cursor.rowid, T1=["A","B","C","D"])
         transaction.commit()
 
-        cursor3 = parent.subfile_cursor("T1")
-        cursor3 = list(cursor3)
-        self.assertEquals(len(cursor3), 4)
-        self.assertEquals(cursor3[-1].T1, "55")
+        transaction.begin()
+        cursor = pymult.traverser("B", " ")
+        parent = cursor.next()
+        self.assertEquals(len(parent[0]), 4)
+        self.assertEquals(parent[0][-1], "D")
 
         # delete an element
         # TODO: this functionality is not currently working.
-        transaction.begin()
-        cursor3[-1].delete()
+        pymult.update(cursor.rowid, T1=["A","B"])
         transaction.commit()
 
-        cursor4 = parent.subfile_cursor("T1")
-        cursor4 = list(cursor4)
-        self.assertEquals(len(cursor4), 3)
-        self.assertNotEquals(cursor4[-1].T1, "55")
+        cursor = pymult.traverser("B", " ")
+        parent = cursor.next()
+        self.assertEquals(len(parent[0]), 2)
+        self.assertNotEquals(parent[0][-1], "B")
 
 test_cases = (TestMulti, )
 

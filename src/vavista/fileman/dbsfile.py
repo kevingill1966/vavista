@@ -11,7 +11,8 @@ from shared import FilemanError
 from dbsrow import DBSRow
 
 class IndexIterator:
-    def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True, from_rule=">=", to_rule="<", raw=False, getter=None):
+    def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True,
+        from_rule=">=", to_rule="<", raw=False, getter=None, description=None):
         """
             An iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -32,6 +33,7 @@ class IndexIterator:
         self.to_rule = to_rule
         self.raw = raw
         self.getter = getter
+        self.description = description
 
         if self.from_value != None and self.to_value != None:
             if self.ascending:
@@ -47,6 +49,10 @@ class IndexIterator:
 
     def __iter__(self):
         return self
+
+    @property
+    def rowid(self):
+        return self.lastrowid
 
     def next(self):
         lastkey = self.lastkey
@@ -123,29 +129,56 @@ class DBSFile(object):
         This class provides mechanisms to return rows.
         Currently only "get" is provided which returns one row identified by an id.
         I want to provide search functionality in this class.
+
+        The get method should return something approximating a result
+        from dbapi.
     """
     dd = None
     internal = True
     fieldids = None
+    _description = None
 
-    def __init__(self, dd, internal=True, fieldids=None):
+    def __init__(self, dd, internal=True, fieldids=None, fieldnames=None):
         self.dd = dd
         self.internal = internal
-        self.fieldids = fieldids
+        if fieldnames:
+            self.fieldids = [dd.attrs[n] for n in fieldnames]
+        else:
+            self.fieldids = fieldids
+
         assert (dd.fileid is not None)
 
     def __str__(self):
         return "DBSFILE %s (%s)" % (self.dd.filename, self.dd.fileid)
 
-    def get(self, rowid):
+    @property
+    def description(self):
+        """
+            Describe the resultset. This is made by the DBSRow object.
+        """
+        if self._description is None:
+            record = DBSRow(self, self.dd, None, fieldids=self.fieldids, internal=self.internal)
+            self._description = record.description
+        return self._description
+
+    def get(self, rowid, asdict=False):
         """
             The logic to retrieve and update the row is in the DBSRow class.
             This call constructs a DBSRow class, and verifies that
             the row exists in the database.
+
+            It returns sequence, as per the dbapi spec.
+
+            Multiples are a problem. The multiple is returned as a nested
+            sequence of sequences.
         """
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
         record._retrieve() # raises exception on failure
-        return record
+        try:
+            return record.as_list()
+        except Exception, e:
+            print e
+            import pdb; pdb.post_mortem()
 
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False):
         """
@@ -181,7 +214,8 @@ class DBSFile(object):
             else:
                 assert to_rule in (">", ">=", "=")
         gl_prefix = self.dd.m_open_form()
-        return IndexIterator(gl_prefix, index, from_value, to_value, ascending, from_rule, to_rule, raw, getter=self.get)
+        return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
+            from_rule, to_rule, raw, getter=self.get, description=self.description)
 
     def new(self):
         """
@@ -191,3 +225,32 @@ class DBSFile(object):
             raise FilemanError("You must use internal format to modify a file")
         record = DBSRow(self, self.dd, rowid=None, fieldids=self.fieldids, internal=True)
         return record
+
+    def update(self, _rowid, **kwargs):
+        """
+            Update a record. The kwargs are named parameters.
+        """
+        fieldnames=kwargs.keys()
+        fieldnames.sort()
+
+        values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items()])
+        record = DBSRow(self, self.dd, _rowid, internal=self.internal, fieldids=values.keys())
+        record._update(values)
+
+    def insert(self, **kwargs):
+        """
+            Insert a record. The kwargs are named parameters.
+        """
+        fieldnames=kwargs.keys()
+        fieldnames.sort()
+
+        values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items()])
+        record = DBSRow(self, self.dd, None, internal=self.internal, fieldids=values.keys())
+        return record._insert(values)
+
+    def traverse_pointer(self, fieldname, value, fieldnames=None):
+        """
+            Given a pointer, follow it to the next file.
+        """
+        handler = DBSRow(self, self.dd, None, internal=self.internal)
+        return handler.traverse(fieldname, value, fieldnames=fieldnames)

@@ -6,7 +6,7 @@
 
 from vavista import M
 from vavista.fileman.dbsdd import FT_WP, DD, FT_SUBFILE
-from shared import FilemanError
+from shared import FilemanError, ROWID, STRING
 from transaction import transaction_manager as transaction
 
 class FilemanValidationError(FilemanError):
@@ -60,12 +60,23 @@ class DBSRow(object):
         self._internal = internal
         self._changed_fields = []
 
+        # For subfiles, if the field name is T1, the field of interest is
+        # T1 in subfile T1 (T1->.01). T1->T2 is field T2 in file T1.
+        fields = self._fields = dict()
         if fieldids:
-            self._fields = dict([(k,v) for (k,v) in dd.fields.items() if v.fieldid in fieldids])
+            for fieldid in fieldids:
+                if type(fieldid) == tuple:
+                    parent, child = fieldid
+                    parent = dd.fields[parent]
+                    child = parent._dd.fields[child]
+                    fields[fieldid] = (parent, child)
+                else:
+                    fields[fieldid] = dd.fields[fieldid]
             self._fieldids = fieldids
         else:
             self._fields = dd.fields
-            self._fieldids = [v.fieldid for (k,v) in dd.fields.items()]
+            self._fieldids = dd.fields.keys()
+            self._fieldids.sort()
 
         # Lazy evaluation
         if tmpid:
@@ -206,10 +217,13 @@ class DBSRow(object):
                     fn = f.label
                 else:
                     fn = "not in dd"
-                if self._internal:
-                    rv.append('%s (%s) = "%s"' % (fn, k, v['I'].value))
+                if type(v) == M.Global:
+                    if self._internal:
+                        rv.append('%s (%s) = "%s"' % (fn, k, v['I'].value))
+                    else:
+                        rv.append('%s (%s) = "%s"' % (fn, k, v.value))
                 else:
-                    rv.append('%s (%s) = "%s"' % (fn, k, v.value))
+                        rv.append('%s (%s) = "%s"' % (fn, k, v))
         return '\n'.join(rv)
 
     def keys(self):
@@ -308,7 +322,7 @@ class DBSRow(object):
                     node = external_path[str(i+1)]
                     node.value = mvalue[i]
             else:
-                field.validate_insert(mvalue)
+                field.validate_insert(mvalue, self._internal)
                 self._getitem(fieldid).value = mvalue
             return
         raise AttributeError(key)
@@ -339,9 +353,20 @@ class DBSRow(object):
             #       are mixed up
             fileid = self._dd.parent_dd.fileid
             iens = self._iens
-            fieldids = str(self._dd.parent_fieldid) + "*"
+            fieldids = str(self._dd.parent_fieldid) + "**"
         else:
-            fieldids = ";".join([k for (k,v) in self._fields.items() if v.fmql_type not in [FT_SUBFILE]])
+            f = []
+            for (k,v) in self._fields.items():
+                if type(k) == tuple:
+                    if k[0]+"*" not in f:
+                        f.append(k[0]+"*")
+                else:
+                    if v.fmql_type in [FT_SUBFILE]:
+                        f.append(k+"*")
+                    else:
+                        f.append(k)
+            #fieldids = ";".join([k for (k,v) in self._fields.items() if v.fmql_type not in [FT_SUBFILE]])
+            fieldids = ";".join(f)
             fileid = self._dd.fileid
             iens = self._iens
 
@@ -359,7 +384,127 @@ class DBSRow(object):
             raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
                 % (self._dd.filename, fileid, iens, fieldids), str(err))
 
-        self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+        #self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
+        try:
+            self._save_tmp_global()
+        except Exception, e:
+            print e
+            import pdb; pdb.post_mortem()
+
+    def as_list(self):
+        """
+            Return the current result set (self._stored_data) as a sequence,
+            as per the dbapi spec. The description of the rows is in the
+            description property.
+        """
+        rv = []
+        for fieldid in self._fieldids:
+            rv.append(self._stored_data.get(fieldid, None))
+        return tuple(rv)
+
+    @property
+    def description(self):
+        """
+            Describe the result set, as per the dbapi spec.
+
+            Each of these sequences contains information describing
+            one result column: 
+
+              (name, 
+               type_code, 
+               display_size,
+               internal_size, 
+               precision, 
+               scale, 
+               null_ok)
+
+            All of the fields are returned as strings for the moment.
+        """
+        rv = []
+        for fieldid in self._fieldids:
+            field = self._fields[fieldid]
+            # TODO: get data from data-dictionary
+            if type(field) == tuple: # subfile item
+                rv.append(("%s->%s" % (field[0].label, field[1].label), STRING, None, None, None, None, True))
+            else:
+                rv.append((field.label, STRING, None, None, None, None, True))
+        return rv
+
+    def _save_tmp_global(self):
+        """
+            Extract results from the result area, and store them into _stored_data
+
+            fileid / iens / fieldid / 'I' = value
+        """
+        main_fileid = str(self._dd.fileid)
+        self._stored_data = {}
+
+        root = M.Globals[self._row_tmpid]
+        print root
+
+        subfiles = {}
+
+        for fileid, v in root.keys_with_decendants():
+            # Data is stored either under a fileid or a subfileid
+            if fileid == main_fileid:
+                file = root[fileid]
+                for iens, v in file.keys_with_decendants():
+                    row = file[iens]
+                    self._stored_data['_rowid'] = iens.split(",", 1)[0]
+                    if self._internal:
+                        for fieldid, v in row.keys_with_decendants():
+                            field = self._dd.fields[fieldid]
+                            self._stored_data[fieldid] = field.pyfrom_internal(row[fieldid]['I'].value)
+                    else:
+                        for fieldid in row.keys():
+                            field = self._dd.fields[fieldid]
+                            self._stored_data[fieldid] = field.pyfrom_external(row[fieldid].value)
+            else:
+                # This is a subfile
+                if fileid in subfiles:
+                    store = subfiles[fileid]
+                else:
+                    store = subfiles[fileid] = dict()
+
+                sf = root[fileid]
+                for iens, v in sf.keys_with_decendants():
+                    row = sf[iens]
+                    if iens in store:
+                        rowstore = store[iens]
+                    else:
+                        rowstore = store[iens] = dict()
+
+                    # TODO: convert from internal/external to python
+                    for fieldid, v in row.keys_with_decendants():
+                        if self._internal:
+                            rowstore[fieldid] = row[fieldid]['I'].value
+                        else:
+                            rowstore[fieldid] = row[fieldid].value
+
+
+        # Now we have extracted the subfiles - we need to move the
+        # data to where we can use it easier.
+        for sf, sf_data in  subfiles.items():
+            sf_data = list(sf_data.items())
+            sf_data.sort()
+
+            sf_fields = []
+            for k,v in self._fields.items():
+                if type(k) == tuple:
+                    if v[0].fmql_type in [FT_SUBFILE] and v[0].subfileid == sf:
+                        sf_fields.append(k)
+                elif v.fmql_type in [FT_SUBFILE] and v.subfileid == sf:
+                    sf_fields.append(k)
+
+            for fieldid in sf_fields:
+                self._stored_data[fieldid] = sf_result = []
+
+                for iens, data in sf_data:
+                    sf_result.append(data[fieldid[1]])
+
+        self._changed = False
+        self._changed_fields = []
+
 
     def _save_global(self, gl):
         """
@@ -404,7 +549,7 @@ class DBSRow(object):
         M.proc("GETS^DIQ",
             fileid,              # numeric file id
             iens,                # IENS
-            fieldids,            # Fields to return TODO
+            fieldids,            # Fields to return 
             flags,               # Flags N=no nulls, R=return field names
             tmpid,
             "ERR")
@@ -425,7 +570,7 @@ class DBSRow(object):
 
         return rv
 
-    def _create_fda(self):
+    def _create_fda(self, values=None):
         """
             For the current record, copy all changed fields to an FDA record
             (Fileman Data Array), see programmer manual 3.2.3
@@ -433,16 +578,111 @@ class DBSRow(object):
             FDA_ROOT(FILE#,"IENS",FIELD#)="VALUE"
 
         """
+        subfile_rowcounts = {}
+        subfile_sizes = {}
+        subfile_extensions = {}
+        subfile_deletions = {}
+        self.adjust_subfiles = None
+
         self._row_fdaid = row_fdaid = "fda%s" % id(self)
         fda = M.Globals[row_fdaid]
         fda.kill()
         fileid = self._dd.fileid
         iens = self._iens
-        for fieldid in self._changed_fields:
-            fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
+        if values:
+            for fieldid, value in values.items():
+                field = self._fields.get(fieldid)
+                if field is None:
+                    if type(fieldid) == tuple and fieldid[1] == '.01':
+                        field = self._fields[fieldid[0]]
+                    else:
+                        assert 0, "could not resolve field %s" % field
+                if type(field) == tuple:
+
+                    # MULTIPLES
+                    #
+                    # Where the number in the multiple being updated is different from
+                    # the original, there are problems. Will have to do a delete/insert
+                    parent, child = field
+                    subfileid = parent.subfileid
+                    sf_fieldid = fieldid[1]
+
+                    # Ensure that updates / inserts to a subfile on multiple keys, use
+                    # the same key lengths for each
+                    if fieldid[0] in subfile_sizes:
+                        if len(value) != subfile_sizes[fieldid[0]]:
+                            raise FilemanError("Insert/Update - subfile entry sizes for subfile %s do not match" % subfileid)
+
+                    subfile_sizes[fieldid[0]] = len(value)
+                    if self._rowid:
+                        # If the value is longer than the current value
+                        # in the sub-file, the extra values cannot be added
+                        # in the update. A subsequent insert must be used.
+                        #sfdd = DD(fieldid[0],
+                        #def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):
+                        import pdb; pdb.set_trace()
+                        if fieldid[0] in subfile_rowcounts:
+                            rowcount = subfile_rowcounts[fieldid[0]]
+                        else:
+                            sfdd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid[0])
+                            cf = sfdd._gl + "%s,0)" % self._rowid
+                            sf_header = M.Globals.from_closed_form(cf).value
+                            rowcount = sf_header.split("^")[3]
+                            if rowcount == '':
+                                subfile_rowcounts[fieldid[0]] = rowcount = 0
+                            else:
+                                subfile_rowcounts[fieldid[0]] = rowcount = int(rowcount)
+
+                        if rowcount < len(value):
+                            if fieldid[0] not in subfile_extensions:
+                                subfile_extensions[fieldid[0]] = []
+                            subfile_extensions[fieldid[0]].append((fieldid, value[rowcount:]))
+                            value = value[:rowcount]
+                        elif rowcount > len(value):
+                            subfile_deletions[fieldid[0]] = len(value) - rowcount
+
+                    for sf_rowid, row in enumerate(value):
+                        sf_iens = "%d,%s," % (sf_rowid+1, self._rowid)
+                        if self._internal:
+                            fda[subfileid][sf_iens][sf_fieldid].value = row
+                        else:
+                            fda[subfileid][sf_iens][sf_fieldid].value = row
+
+                elif field.fmql_type in [FT_WP]:
+                    # WP Fields
+                    # See fm22_0pm.pdf, page 194
+                    if self._internal:
+                        mvalue = field.pyto_internal(value)
+                    else:
+                        mvalue = field.pyto_external(value)
+                    field.validate_insert(mvalue, self._internal)
+                    base = M.Globals["TMP"][str(fileid) + ".wp." + str(fieldid)]
+                    base.kill()
+                    for i, line in enumerate(mvalue):
+                        base[str(i+1)].value = line
+
+                    fda[fileid][iens][fieldid].value = base.closed_form
+
+                else:
+                    if self._internal:
+                        mvalue = field.pyto_internal(value)
+                    else:
+                        mvalue = field.pyto_external(value)
+                    field.validate_insert(mvalue, self._internal)
+                    fda[fileid][iens][fieldid].value = mvalue
+        else:
+            for fieldid in self._changed_fields:
+                fda[fileid][iens][fieldid].value = self._getitem(fieldid).value
+
+        if subfile_extensions or subfile_deletions:
+            # only affects update
+            print subfile_extensions
+            print subfile_deletions
+            self.adjust_subfiles = (subfile_extensions, subfile_deletions)
+
         return row_fdaid
 
-    def _insert(self):
+    def _insert(self, values=None):
         """
             Create a new record
 
@@ -454,17 +694,20 @@ class DBSRow(object):
         M.Globals["ERR"].kill()
 
         # Create an FDA format array for fileman
-        fdaid = self._create_fda()
+        fdaid = self._create_fda(values)
         ienid = "ien%s" % id(self)
 
         # Flags:
         # E - use external formats
         # S - do not clear the row global
+
+        # TODO: I want the external format for validation,
+        #       but the internal format for usablility
         if self._internal:
             flags = ""
         else:
             flags = "E"
-        flags = flags + "S"
+
         M.proc("UPDATE^DIE", flags , fdaid, ienid, "ERR")
 
         # Check for error
@@ -485,24 +728,32 @@ class DBSRow(object):
         # What is the id of the new record?
         self._rowid = int(M.Globals[ienid]['1'].value)
         self._stored_data = None
+        return self._rowid
 
-    def _update(self):
+    def _update(self, values=None):
         """
             Write changed data back to the database.
             
             This is intended to be used during a transaction commit.
+
+            TODO: dbsdd validation for fields
         """
         M.Globals["ERR"].kill()
 
         # Create an FDA format array for fileman
-        fdaid = self._create_fda()
+        fdaid = self._create_fda(values)
 
         # Flags:
         # E - use external formats
         # K - lock the record
         # S - do not clear the row global
         # T - verify the data
-        M.proc("FILE^DIE", "EST" , fdaid, "ERR")
+        #TODO: I want to do validation, but use internal format throughout
+        if self._internal:
+            flags = ""
+        else:
+            flags = "ET"
+        M.proc("FILE^DIE", flags, fdaid, "ERR")
 
         # Check for error
         err = M.Globals["ERR"]
@@ -510,9 +761,30 @@ class DBSRow(object):
             raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
                 % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
 
+        # TODO: This logic is wrong. It assumes that the subfile records are contiguous.
+        #       Instead, I should wipe the subfiles and insert them every time.
+        if self.adjust_subfiles:
+            (subfile_extensions, subfile_deletions) = self.adjust_subfiles 
+            for key, value in subfile_extensions.items():
+                self._extend_subfile(key, value)
+            for key, value in subfile_deletions.items():
+                self._contract_subfile(key, value)
+
     def __repr__(self):
         return "<%s.%s %s, rowid=%s>" % (self.__class__.__module__, self.__class__.__name__, self._dd.filename, self._rowid)
 
+    def _extend_subfile(self, fieldid, values):
+        """
+            Add new records to an existing subfile.
+            values is a list if (fieldid, sf_fieldid), value tuples
+        """
+        import pdb; pdb.set_trace()
+
+    def _contract_subfile(self, fieldid, count):
+        """
+            delete records from an existing subfile.
+        """
+        import pdb; pdb.set_trace()
 
     def delete(self):
         """
@@ -563,7 +835,7 @@ class DBSRow(object):
                     % (self._dd.filename, self._dd.fileid, self._rowid))
 
 
-    def traverse(self, fieldname):
+    def traverse(self, fieldname, foreignkeyval=None, fieldnames=None):
         """
             For a pointer field, traverse to the related data
 
@@ -572,18 +844,21 @@ class DBSRow(object):
         fieldid = self._dd.attrs.get(fieldname, None)
         if fieldid is None:
             raise AttributeError(fieldname)
-
-        if self._internal:
-            try:
-                foreignkeyval = str(self._data[fieldid]['I'].value)
-            except:
-                raise FilemanError("Value Not found %s" % fieldid)
-        else:
-            raise FilemanError("""You must be using "Internal" access to traverse to a related file""")
-
         field_dd = self._dd.fields[fieldid]
-        foreignkeyval = field_dd.pyfrom_internal(foreignkeyval)
-        return field_dd.foreign_get(foreignkeyval, internal=True)
+
+        if foreignkeyval == None:
+            if self._internal:
+                try:
+                    foreignkeyval = str(self._data[fieldid]['I'].value)
+                    foreignkeyval = field_dd.pyfrom_internal(foreignkeyval)
+                except:
+                    raise FilemanError("Value Not found %s" % fieldid)
+            else:
+                raise FilemanError("""You must be using "Internal" access to traverse to a related file""")
+        else:
+            foreignkeyval = field_dd.pyfrom_external(foreignkeyval)
+
+        return field_dd.foreign_get(foreignkeyval, internal=True, fieldnames=fieldnames)
 
     def subfile_cursor(self, fieldname):
         """
@@ -646,3 +921,4 @@ class DBSRow(object):
         # this is not terribly clear - the iens should be
         # +1,rowid, I think the order is the reverse order of the path
         return DBSRow(subfile, subfile_dd, rowid='+1,%s,' % fieldid)
+

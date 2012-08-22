@@ -115,56 +115,53 @@ class TestNumerics(unittest.TestCase):
             Validate the data which was in the file. This data
             was created via FILEMAN.
         """
-        pytest3 = self.dbs.get_file("PYTEST3", internal=True)
+        pytest3 = self.dbs.get_file("PYTEST3", internal=True,
+            fieldnames = ["NAME", "INT1", "INT2", "DOLLARS", "FLOAT1", "FLOAT2"])
         cursor = pytest3.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec.INT1, 10)
-        self.assertEqual(rec.INT2, -10)
-        self.assertEqual(rec.DOLLARS, 33.33)
-        self.assertEqual(rec.FLOAT1, 22222.22)
-        self.assertEqual(rec.FLOAT2, -333.0)
+        self.assertEqual(rec[1], 10)
+        self.assertEqual(rec[2], -10)
+        self.assertEqual(rec[3], 33.33)
+        self.assertEqual(rec[4], 22222.22)
+        self.assertEqual(rec[5], -333.0)
 
-        pytest3 = self.dbs.get_file("PYTEST3", internal=False)
+        pytest3 = self.dbs.get_file("PYTEST3", internal=False,
+            fieldnames = ["NAME", "INT1", "INT2", "DOLLARS", "FLOAT1", "FLOAT2"])
         cursor = pytest3.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec.INT1, 10)
-        self.assertEqual(rec.INT2, -10)
-        self.assertEqual(rec.DOLLARS, 33.33)
-        self.assertEqual(rec.FLOAT1, 22222.22)
-        self.assertEqual(rec.FLOAT2, -333.0)
+        self.assertEqual(rec[1], 10)
+        self.assertEqual(rec[2], -10)
+        self.assertEqual(rec[3], 33.33)
+        self.assertEqual(rec[4], 22222.22)
+        self.assertEqual(rec[5], -333.0)
 
     def test_write(self):
-        pytest3 = self.dbs.get_file("PYTEST3")
+        pytest3 = self.dbs.get_file("PYTEST3",
+            fieldnames = ["NAME", "INT1", "INT2", "DOLLARS", "FLOAT1", "FLOAT2"])
         transaction.begin()
-        rec = pytest3.new()
-        rec.NAME = "Insert"
-        rec.INT1 = 11
-        rec.INT2 = -11
-        rec.DOLLARS = 44.44
-        rec.FLOAT1 = 3333.33
-        rec.FLOAT2 = -444.0
+        rowid = pytest3.insert(NAME="Insert", INT1=11, INT2=-11, DOLLARS=44.44,
+            FLOAT1=3333.33, FLOAT2=-444.0)
         transaction.commit()
 
         cursor = pytest3.traverser("B", "Insert")
         rec = cursor.next()
 
-        self.assertEqual(rec.INT1, 11)
-        self.assertEqual(rec.INT2, -11)
-        self.assertEqual(rec.DOLLARS, 44.44)
-        self.assertEqual(rec.FLOAT1, 3333.33)
-        self.assertEqual(rec.FLOAT2, -444.0)
+        self.assertEqual(rec[1], 11)
+        self.assertEqual(rec[2], -11)
+        self.assertEqual(rec[3], 44.44)
+        self.assertEqual(rec[4], 3333.33)
+        self.assertEqual(rec[5], -444.0)
+
 
     def test_badwrite(self):
         pytest3 = self.dbs.get_file("PYTEST3")
 
         transaction.begin()
-        rec = pytest3.new()
         e = None
         try:
-            rec.NAME = "bad Insert1"
-            rec.INT1 = 1.1
+            pytest3.insert(NAME="bad Insert1", INT1=1.1)
             transaction.commit()
         except FilemanError, e1:
             transaction.abort()
@@ -174,11 +171,9 @@ class TestNumerics(unittest.TestCase):
         self.assertEquals(e, None)
 
         transaction.begin()
-        rec = pytest3.new()
         e = None
         try:
-            rec.NAME = "bad Insert2"
-            rec.DOLLARS = 44.4499
+            pytest3.insert(NAME="bad Insert2", DOLLARS=44.4499)
             transaction.commit()
         except FilemanError, e1:
             transaction.abort()
@@ -188,15 +183,14 @@ class TestNumerics(unittest.TestCase):
         self.assertEquals(e, None)
 
         transaction.begin()
-        rec = pytest3.new()
         e = None
         try:
-            rec.NAME = "bad Insert3"
-            rec.FLOAT1 = "abc"
+            pytest3.insert(NAME="bad Insert3", FLOAT1 = "abc")
             transaction.commit()
         except FilemanError, e1:
             transaction.abort()
             e = e1
+
         self.assertTrue(isinstance(e, FilemanError))
 
     def test_indexing(self):

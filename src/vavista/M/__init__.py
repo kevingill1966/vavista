@@ -101,6 +101,8 @@ def as_mvalue(s):
         Return string version of s as used as a value in a valid mumps expression,
         i.e. quoted if non numeric
     """
+    if s == None:
+        return ""
     try:
         int(s)
         return s
@@ -254,7 +256,9 @@ class Global(object):
         else:
             s0 = '%s("%s")' % (self.path[0], '","'.join(self.path[1:]))
 
-        if type(s1) == unicode:
+        if s1 == None:
+            s1 = ""
+        elif type(s1) == unicode:
             try:
                 s1 = s1.encode('utf-8')
             except:
@@ -386,7 +390,7 @@ class Global(object):
         for k, v in serialised_form:
             mset('%s%s' % (prefix, k), safe_str(v))
 
-    def serialise(self, trim_path=None):
+    def serialise(self, trim_path=None, has_value=None):
         """
             Convert a global to a serialised format.
             returns a list of (key, value) pairs. The format is intended
@@ -412,15 +416,16 @@ class Global(object):
         """
         rv = []
 
-        try:
-            rv.append((self.open_form_suffix(trim_path), self.value))
-        except:
-            pass
+        if has_value or (has_value == None and self.has_value()):
+            try:
+                rv.append((self.open_form_suffix(trim_path), self.value))
+            except:
+                pass
 
         for item in self.walk(filter=11):
             k,v,f = item
             if f & 10:
-                children = self[k].serialise(trim_path=trim_path)
+                children = self[k].serialise(trim_path=trim_path, has_value=f & 1)
                 if children:
                     rv = rv + children
             elif f & 1:

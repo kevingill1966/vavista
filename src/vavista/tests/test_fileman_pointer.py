@@ -161,88 +161,89 @@ class TestPointer(unittest.TestCase):
         self._cleanupFile()
 
     def test_external(self):
-        pytest = self.dbs.get_file("PYTEST9B", internal=False)
+        pytest = self.dbs.get_file("PYTEST9B", internal=False, 
+                fieldnames=["NAME", "P1", "P2"])
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "EIGHT")
-        self.assertEqual(str(rec.P1), "EIGHT")
-        self.assertEqual(str(rec.P2), "EIGHT")
+        self.assertEqual(rec[0], "EIGHT")
+        self.assertEqual(rec[1], "EIGHT")
+        self.assertEqual(rec[2], "EIGHT")
 
 
     def test_internal(self):
-        pytest = self.dbs.get_file("PYTEST9B", internal=True)
+        pytest = self.dbs.get_file("PYTEST9B", internal=True,
+                fieldnames=["NAME", "P1", "P2"])
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "EIGHT")
-        self.assertEqual(str(rec.P1), "6")
-        self.assertEqual(str(rec.P2), "6")
+        self.assertEqual(rec[0], "EIGHT")
+        self.assertEqual(rec[1], "6")
+        self.assertEqual(rec[2], "6")
 
     def test_traverse(self):
-        pytest = self.dbs.get_file("PYTEST9B", internal=True)
+        pytest = self.dbs.get_file("PYTEST9B", internal=True,
+                fieldnames=["NAME", "P1", "P2"])
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "EIGHT")
-        self.assertEqual(str(rec.P1), "6")
-        self.assertEqual(str(rec.P2), "6")
+        self.assertEqual(rec[0], "EIGHT")
+        self.assertEqual(rec[1], "6")
+        self.assertEqual(rec[2], "6")
 
         # Traverse
-        reference = rec.traverse("P1")
-        self.assertEqual(str(reference.NAME), "EIGHT")
-        self.assertEqual(str(reference.VALUE), "8")
-        reference2 = rec.traverse("P2")
-        self.assertEqual(str(reference2.NAME), "EIGHT")
-        self.assertEqual(str(reference2.VALUE), "8")
+        reference = pytest.traverse_pointer("P1", rec[1])
+        self.assertEqual(str(reference[0]), "EIGHT")
+        self.assertEqual(str(reference[1]), "8")
+
+        # name the fields in the target
+        reference2 = pytest.traverse_pointer("P2", rec[2], fieldnames=["VALUE"])
+        self.assertEqual(str(reference2[0]), "8")
 
     def test_insert(self):
 
-        pytest = self.dbs.get_file("PYTEST9B", internal=True)
+        pytest = self.dbs.get_file("PYTEST9B", internal=True,
+                fieldnames=["NAME", "P1", "P2"])
 
         transaction.begin()
-        rec = pytest.new()
-        rec.NAME = "TEST INSERT"
-        rec.P1 = "2"
-        rec.P2 = "5"
+        rowid = pytest.insert(NAME="TEST INSERT", P1="2", P2="5")
         transaction.commit()
 
         cursor = pytest.traverser("B", "TEST INSERT")
         rec = cursor.next()
 
-        self.assertEqual(str(rec.NAME), "TEST INSERT")
-        self.assertEqual(str(rec.P1), "2")
-        self.assertEqual(str(rec.P2), "5")
+        self.assertEqual(rec[0], "TEST INSERT")
+        self.assertEqual(rec[1], "2")
+        self.assertEqual(rec[2], "5")
 
-        reference = rec.traverse("P1")
-        self.assertEqual(str(reference.NAME), "TWO")
-        self.assertEqual(str(reference.VALUE), "2")
+        reference = pytest.traverse_pointer("P1", rec[1])
+        self.assertEqual(str(reference[0]), "TWO")
+        self.assertEqual(str(reference[1]), "2")
 
-        reference = rec.traverse("P2")
-        self.assertEqual(str(reference.NAME), "NINE")
-        self.assertEqual(str(reference.VALUE), "9")
+        reference = pytest.traverse_pointer("P2", rec[2])
+        self.assertEqual(str(reference[0]), "NINE")
+        self.assertEqual(str(reference[1]), "9")
 
     def test_badinsert(self):
         """
             Should fail to insert if foreign key non-existant
         """
-        pytest = self.dbs.get_file("PYTEST9B", internal=True)
+        pytest = self.dbs.get_file("PYTEST9B", internal=True,
+                fieldnames=["NAME", "P1", "P2"])
 
         transaction.begin()
         exception = False
         try:
-            rec = pytest.new()
-            rec.NAME = "TEST INSERT"
-            rec.P1 = "20"
+            rowid = pytest.insert(NAME="TEST INSERT", P1="20")
             transaction.commit()
         except FilemanError, e:
             transaction.abort()

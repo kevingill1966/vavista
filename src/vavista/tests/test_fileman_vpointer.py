@@ -183,25 +183,27 @@ class TestVPointer(unittest.TestCase):
         self._cleanupFile()
 
     def test_external(self):
-        pytest = self.dbs.get_file("PYTEST10C", internal=False)
+        pytest = self.dbs.get_file("PYTEST10C", internal=False,
+                fieldnames = ["NAME", "VP1"])
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "ONE")
-        self.assertEqual(str(rec.VP1), "ONE")
+        self.assertEqual(rec[0], "ONE")
+        self.assertEqual(rec[1], "ONE")
 
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "TEN")
-        self.assertEqual(str(rec.VP1), "TEN")
+        self.assertEqual(rec[0], "TEN")
+        self.assertEqual(rec[1], "TEN")
 
 
     def test_internal(self):
-        pytest = self.dbs.get_file("PYTEST10C", internal=True)
+        pytest = self.dbs.get_file("PYTEST10C", internal=True,
+                fieldnames = ["NAME", "VP1"])
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
@@ -209,58 +211,58 @@ class TestVPointer(unittest.TestCase):
         rec = cursor.next()
 
         # VPointer perfixes the remote file id to the value.
-        self.assertEqual(str(rec.NAME), "ONE")
-        self.assertEqual(str(rec.VP1), "VP1.1")
+        self.assertEqual(rec[0], "ONE")
+        self.assertEqual(rec[1], "VP1.1")
 
         rec = cursor.next()
 
-        self.assertEqual(str(rec.NAME), "TEN")
-        self.assertEqual(str(rec.VP1), "VP2.1")
+        self.assertEqual(rec[0], "TEN")
+        self.assertEqual(rec[1], "VP2.1")
 
     def test_traverse(self):
-        pytest = self.dbs.get_file("PYTEST10C", internal=True)
+        pytest = self.dbs.get_file("PYTEST10C", internal=True,
+                fieldnames = ["NAME", "VP1"])
 
         # The low-level traverser, walks index "B", on NAME field
         cursor = pytest.traverser("B", " ")
 
         rec = cursor.next()
 
-        self.assertEqual(str(rec.NAME), "ONE")
-        self.assertEqual(str(rec.VP1), "VP1.1")
+        self.assertEqual(rec[0], "ONE")
+        self.assertEqual(rec[1], "VP1.1")
 
         # Traverse
-        reference = rec.traverse("VP1")
-        self.assertEqual(str(reference.NAME), "ONE")
-        self.assertEqual(str(reference.VALUE), "1")
+        reference = pytest.traverse_pointer("VP1", rec[1])
+        self.assertEqual(reference[0], "ONE")
+        self.assertEqual(str(reference[1]), "1")
 
         rec = cursor.next()
 
-        self.assertEqual(str(rec.NAME), "TEN")
-        self.assertEqual(str(rec.VP1), "VP2.1")
+        self.assertEqual(rec[0], "TEN")
+        self.assertEqual(rec[1], "VP2.1")
 
-        reference = rec.traverse("VP1")
-        self.assertEqual(str(reference.NAME), "TEN")
-        self.assertEqual(str(reference.VALUE), "10")
+        reference = pytest.traverse_pointer("VP1", rec[1])
+        self.assertEqual(reference[0], "TEN")
+        self.assertEqual(str(reference[1]), "10")
 
     def test_insert(self):
 
-        pytest = self.dbs.get_file("PYTEST10C", internal=True)
+        pytest = self.dbs.get_file("PYTEST10C", internal=True,
+                fieldnames = ["NAME", "VP1"])
 
         transaction.begin()
-        rec = pytest.new()
-        rec.NAME = "TEST INSERT"
-        rec.VP1 = "VP1.2"
+        rowid = pytest.insert(NAME="TEST INSERT", VP1="VP1.2")
         transaction.commit()
 
         cursor = pytest.traverser("B", "TEST INSERT")
         rec = cursor.next()
 
-        self.assertEqual(str(rec.NAME), "TEST INSERT")
-        self.assertEqual(str(rec.VP1), "VP1.2")
+        self.assertEqual(rec[0], "TEST INSERT")
+        self.assertEqual(rec[1], "VP1.2")
 
-        reference = rec.traverse("VP1")
-        self.assertEqual(str(reference.NAME), "TWO")
-        self.assertEqual(str(reference.VALUE), "2")
+        reference = pytest.traverse_pointer("VP1", rec[1])
+        self.assertEqual(reference[0], "TWO")
+        self.assertEqual(str(reference[1]), "2")
 
     def test_badinsert(self):
         """
@@ -271,9 +273,7 @@ class TestVPointer(unittest.TestCase):
         transaction.begin()
         exception = False
         try:
-            rec = pytest.new()
-            rec.NAME = "TEST INSERT"
-            rec.VP1 = "VP1.20"
+            rowid = pytest.insert(NAME="TEST INSERT", VP1="VP1.20")
             transaction.commit()
         except FilemanError, e:
             transaction.abort()

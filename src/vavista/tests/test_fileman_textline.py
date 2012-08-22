@@ -133,11 +133,8 @@ class TestTextline(unittest.TestCase):
 
     def test_readwrite(self):
         transaction.begin()
-        pytest1 = self.dbs.get_file("PYTEST1")
-        record = pytest1.new()
-        record.NAME = 'Test Insert'
-        record.TEXTLINE_ONE = "LINE 1"
-        record.TEXTLINE2 = "LINE 2"
+        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=['NAME', 'TEXTLINE_ONE', 'TEXTLINE2'])
+        pytest1.insert(NAME='Test Insert', TEXTLINE_ONE="LINE 1", TEXTLINE2="LINE 2")
         transaction.commit()
 
         # The low-level traverser, walks index "B", on NAME field
@@ -146,9 +143,9 @@ class TestTextline(unittest.TestCase):
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "Test Insert")
-        self.assertEqual(str(rec.TEXTLINE_ONE), "LINE 1")
-        self.assertEqual(str(rec.TEXTLINE2), "LINE 2")
+        self.assertEqual(rec[0], "Test Insert")
+        self.assertEqual(rec[1], "LINE 1")
+        self.assertEqual(rec[2], "LINE 2")
 
         # Once this is working
         # Verify mandatory field insert logic
@@ -160,13 +157,14 @@ class TestTextline(unittest.TestCase):
             Insert multiple items. Verify that traversal back and 
             forward works.
         """
+
+        # TODO:
+        # There is an instability here - If I print out the global
+        # after each insert this logic works !!!
         transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1")
         for i in range(10):
-            record = pytest1.new()
-            record.NAME = 'ROW%d' % i
-            record.TEXTLINE_ONE = "%d: LINE 1" % i
-            record.TEXTLINE2 = "%d: LINE 2" % i
+            pytest1.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
         transaction.commit()
 
         # Index B is a default Key Field on the NAME field
@@ -255,19 +253,15 @@ class TestTextline(unittest.TestCase):
         """
         transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1")
-        record = pytest1.new()
-        record.NAME = 'ROW1'
-        record.TEXTLINE_ONE = "LINE 1"
+        pytest1.insert(NAME='ROW1', TEXTLINE_ONE="LINE 1")
         transaction.commit()
 
+        # TODO: These are no longer working, since I switched to insert in Internal mode
         transaction.begin()
         exception = False
         try:
             pytest1 = self.dbs.get_file("PYTEST1")
-            record = pytest1.new()
-            record.NAME = 'ROW3'
-            record.TEXTLINE_ONE = "LINE 1"
-            record.TEXTLINE2 = None
+            pytest1.insert(NAME='ROW3', TEXTLINE_ONE="LINE 1", TEXTLINE2=None)
         except FilemanError, e:
             exception = True
         self.assertEqual(exception, True)
@@ -277,15 +271,11 @@ class TestTextline(unittest.TestCase):
         exception = False
         try:
             pytest1 = self.dbs.get_file("PYTEST1")
-            record = pytest1.new()
-            record.NAME = 'ROW3'
-            record.TEXTLINE_ONE = "LINE 1"
-            record.TEXTLINE2 = ""
+            pytest1.insert(NAME='ROW3', TEXTLINE_ONE="LINE 1", TEXTLINE2="")
         except FilemanError, e:
             exception = True
         self.assertEqual(exception, True)
         transaction.abort()
-
 
 test_cases = (TestTextline, )
 

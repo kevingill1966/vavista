@@ -92,11 +92,9 @@ class TestMumps(unittest.TestCase):
             transaction.abort()
 
     def test_readwrite(self):
-        pytest = self.dbs.get_file("PYTEST8")
+        pytest = self.dbs.get_file("PYTEST8", fieldnames=['NAME', 'M1'])
         transaction.begin()
-        record = pytest.new()
-        record.NAME = 'Test Insert'
-        record.M1 = 'SET X=4,Y=7'
+        rowid = pytest.insert(NAME='Test Insert', M1='SET X=4,Y=7')
         transaction.commit()
 
         # The low-level traverser, walks index "B", on NAME field
@@ -104,18 +102,20 @@ class TestMumps(unittest.TestCase):
         rec = cursor.next()
 
         # validate the inserted data
-        self.assertEqual(str(rec.NAME), "Test Insert")
-        self.assertEqual(str(rec.M1), "SET X=4,Y=7")
+        self.assertEqual(rec[0], "Test Insert")
+        self.assertEqual(rec[1], "SET X=4,Y=7")
 
         # Attempt to update the field
         e = None
         transaction.begin()
         try:
-            rec.M1 = "Invalid Code"
+            pytest.update(_rowid=rowid, M1="Invalid Code")
             transaction.commit()
         except FilemanError, e1:
             transaction.abort()
             e = e1
+
+        #TODO: validation is not working in new scheme.
         self.assertTrue(isinstance(e, FilemanError))
 
 test_cases = (TestMumps, )
