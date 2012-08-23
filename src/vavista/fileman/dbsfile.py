@@ -42,7 +42,7 @@ class IndexIterator:
                 assert(self.to_value <= self.from_value)
         
         if self.from_value is None:
-            self.lastkey = ""
+            self.lastkey = " "
         else:
             self.lastkey = self.from_value
         self.lastrowid = ""
@@ -174,11 +174,7 @@ class DBSFile(object):
         """
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
         record.retrieve() # raises exception on failure
-        try:
-            return record.as_list()
-        except Exception, e:
-            print e
-            import pdb; pdb.post_mortem()
+        return record.as_list()
 
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False):
         """
@@ -217,15 +213,6 @@ class DBSFile(object):
         return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
             from_rule, to_rule, raw, getter=self.get, description=self.description)
 
-    def new(self):
-        """
-            The logic to create a new row.
-        """
-        if not self.internal:
-            raise FilemanError("You must use internal format to modify a file")
-        record = DBSRow(self, self.dd, rowid=None, fieldids=self.fieldids, internal=True)
-        return record
-
     def update(self, _rowid, **kwargs):
         """
             Update a record. The kwargs are named parameters.
@@ -254,3 +241,15 @@ class DBSFile(object):
         """
         handler = DBSRow(self, self.dd, None, internal=self.internal)
         return handler.traverse(fieldname, value, fieldnames=fieldnames)
+
+    def lock(self, _rowid, timeout=5):
+        record = DBSRow(self, self.dd, _rowid, internal=self.internal)
+        return record.lock(timeout)
+
+    def unlock(self, _rowid):
+        record = DBSRow(self, self.dd, _rowid, internal=self.internal)
+        return record.unlock()
+
+    def delete(self, _rowid):
+        record = DBSRow(self, self.dd, _rowid, internal=self.internal)
+        return record.unlock()

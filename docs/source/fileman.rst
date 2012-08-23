@@ -2,7 +2,7 @@
 vavista.fileman (api for working with fileman files)
 ====================================================
 
-This is currently under development. 
+The vavista fileman API provides a record based API for VistA.
 
 DBS
 ---
@@ -25,12 +25,16 @@ Files
 VistA data, for the most part, is stored in Fileman "Files". These are areas
 of persistent globals which are accessed via Fileman APIs. There is a class
 called DBSFile wrapping file level logic. Request the file object from the
-DBS instance.::
+DBS instance.
 
-    patients = dbs.get_file('PATIENT', internal=True, fieldids=None)
+You can specify the fieldnames your are interested in when getting the file
+handle. Fileman can be very slow if you do not limit your queries to the
+fields you are using.::
+
+    patients = dbs.get_file('PATIENT', fieldnames=None)
 
 Once you have the file, you can retrieve data from it. The data is retrieved
-in rows.::
+in rows. The following will retrieve the data for rowid=1.::
 
     patient1 = patients.get('1')
 
@@ -38,39 +42,42 @@ Example::
 
     from vavista.fileman import connect
     dbs = connect("0", "")
-    patients = dbs.get_file('PATIENT')
+    patients = dbs.get_file('PATIENT', fieldnames=['NAME'])
     patient1 = patients.get('1')
-    print patient1.NAME
-    print patient1
+    print "patient %s is %s" % (1, patient1[0])
+
+The result from a get is a tuple, containing the requested fields. The layout
+of that tuple can be examined using the *description* property on the DBSFile
+object.::
+
+    print patients.description
 
 Modifying data
 --------------
 
-You can modify files. Files can only be modified in a transaction. The
-updates are written to fileman when the transaction commit occurs.
-
-::
+You can update an existing record in a file.::
 
     from vavista.fileman import connect, transaction
     transaction.begin()
     dbs = connect("0", "")
-    patients = dbs.get_file('PATIENT')
+    patients = dbs.get_file('PATIENT', fieldnames=['NAME'])
+    patients.update(2, NAME='FIRST,LAST')
+    transaction.commit()
+
     patient2 = patients.get('2')
-    patient2.NAME = 'FIRST,LAST'
-    transaction.commit()    # writes out here.
+    print "patient %s is %s" % (2, patient2[0])
 
-To create a new record, use the new() operator on the FILE.::
+You can also insert a new record to the file.::
 
     from vavista.fileman import connect, transaction
     transaction.begin()
     dbs = connect("0", "")
-    patients = dbs.get_file('PATIENT')
-    patientn = patients.new()
-    patientn.NAME = 'NEW,PATIENT'
-    transaction.commit()    # writes out here.
+    patients = dbs.get_file('PATIENT', fieldnames=["NAME"])
+    rowid = patients.insert(NAME = 'NEW,PATIENT')
+    transaction.commit()
 
-
-Note: you can only modify data in "INTERNAL" format.
+    patient3 = patients.get(rowid)
+    print "patient %s is %s" % (rowid, patient3[0])
 
 Searching
 ---------
@@ -116,7 +123,7 @@ You can change the order of the search::
     print list(cursor)
     [('666000003', '25'), ('666000002', '205')]
 
-By default, the from value is included, but the to value is excluded, e.g. to get
+By default, the From value is included, but the To value is excluded, e.g. to get
 the 666's use::
 
     cursor = patients.traverser("SSN", '666', '667', raw=True)
@@ -130,6 +137,8 @@ You can include change the inclusion rules::
 
 You can retrieve records by excluding the raw=True flag.
 
+TODO: Fileman has a number of index styles. These have not been investigated fully.
+
 Following Pointers
 ------------------
 
@@ -141,33 +150,63 @@ For pointers, the value in the field is the record id of the remote file record.
 For variable pointers, the value is a foreign file selector and the record id in the
 foreign file (separated by dot).
 
-You can retrieve the remote record using the traverse function. This is a record
-level method, which takes the field name as a parameter.::
+You can retrieve the remote record using the traverse_pointer function. This is a file
+level method, which takes the field name and field value as a parameter.::
 
-        reference = rec.traverse("P1")
+        patients = dbs.get_file('PATIENT', fieldnames=['MARITAL_STATUS'])
+        ms = patients.get(2)[0]
+        print patients.traverse_pointer("MARITAL_STATUS", ms)
+
+To look up the name for a reference value::
+
+        print patients.traverse_pointer("MARITAL_STATUS", ms, fieldnames=['NAME'])[0]
 
 Sub-Files / Multiples
 ---------------------
 
-Where a field is a "multiple" value, the data is stored in a "sub-file". This data
-is stored as a sub-file of the main file, but it can be used in indexes on the
-main file.
+Where a field is a "multiple" value, the data is stored in a "sub-file". 
 
-You read the sub-file by creating a cursor on the subfile. Here T1 is a sub-file field
-on the parent.
+Subfiles are treated as multi-values on the parent file. 
+
+If you do not name fields in your fieldnames variable, only the names
+field is returned.
+
+::
+    patients = dbs.get_file('PATIENT', fieldnames=['INSURANCE_TYPE',
+        "INSURANCE_TYPE->GROUP_PLAN", "INSURANCE_TYPE->COORDINATION_OF_BENEFITS",
+        "INSURANCE_TYPE->SUBSCRIBER_ID", "INSURANCE_TYPE->DATE_ENTERED", ])
+
+    print patients.get(2)
+
+If you do not list the fields, the sub-file records are not returned. Only,
+the "NAME" field (.01) from the subfile is listed.
 
 ::
 
-        parent = file.get(1)
-
-        cursor2 = parent.subfile_cursor("T1")
-
+    patients = dbs.get_file('PATIENT')
+    rec = patients.get(2)
+    for fieldid, f in enumerate(patients.description):
+        if f[0].find('INS') != -1:
+            print f[0], rec[fieldid]
 
 Locking
 -------
 
-Once a record is modified, the row is locked in the database. Locks are
-released on transaction commit/abort, and on process exit.
+Lock, unlock a record.
+
+::
+
+    import time
+
+    from vavista.fileman import connect
+    dbs = connect("0", "")
+    patients = dbs.get_file('PATIENT')
+    patients.lock(2)
+    print 'record 2 is locked'
+    time.sleep(60);
+    patients.unlock(2)
+    print 'record 2 is unlocked'
+    time.sleep(60);
 
 GT.M has a lock manager called lke. 
 
@@ -177,7 +216,7 @@ GT.M has a lock manager called lke.
     LKE> SHOW -ALL
 
     DEFAULT
-    ^DIZ(999900,18) Owned by PID= 1475 which is an existing process
+    ^DPT(2) Owned by PID= 9294 which is an existing process
 
 
 Deleting
@@ -187,15 +226,12 @@ Deleting
 haven't determined the level of validation, specifically how foreign key
 constraints are handled.
 
-*Warning:* Transactions are not implemented.
-
 ::
 
     from vavista.fileman import connect
     dbs = connect("0", "")
     patients = dbs.get_file('PATIENT')
-    patient = patients.get('1')
-    patient.delete()
+    patients.delete('1')
 
     patient = patients.get('1')
     # Throws an exception
@@ -255,8 +291,6 @@ infrastructure.
 
 I need index and file iterators, so that I can produce a resultset.
 
-I need flags to get() and new() to use internal instead of external form data.
-
 I need functions to create simple tables so that I can build automated
 tests.
 
@@ -266,6 +300,6 @@ There also seems to be no interactive option.
 There doesn't seem to be an api to create files. You seem to have to
 create them interactively, and then dump the globals. 
 
-The idea of presenting the mumps values to the application is not
-sound. Use the fieldtypes in the data dictionary to convert between
-the fileman storage and the python space.
+The description concept is not sufficient for the application. Specifically,
+subfiles contain lists of values rather than primitives. Need to use the
+data dictionary to drive the description information.

@@ -75,6 +75,27 @@ FT_VPOINTER=8
 FT_MUMPS=9 
 FT_SUBFILE=10 
 
+def leading_number(val):
+    """
+        Extract the leading number from a string.
+        Terminate when an non-numeric is reached
+    """
+    n=""
+    for c in val:
+        if c not in "0123456789.":
+            break
+        n = n + c
+    return n
+
+def strip_leading_chars(val):
+    """
+        Strip the leading characters from a string, so that the number is located
+    """
+    for i, c in enumerate(val):
+        if c in "0123456789.":
+            return val[i:]
+    return ""
+
 class Field(object):
     fmql_type = None
     label = None
@@ -245,9 +266,18 @@ class FieldDatetime(Field):
         mth = int(parts[0][3:5])
         day = int(parts[0][5:7])
         if len(parts) > 1:
-            hr = int(parts[1][0:2])
-            mins = int(parts[1][2:4])
-            secs = int(parts[1][4:6])
+            try:
+                hr = int(parts[1][0:2])
+            except:
+                hr = 0
+            try:
+                mins = int(parts[1][2:4])
+            except:
+                mins = 0
+            try:
+                secs = int(parts[1][4:6])
+            except:
+                secs = 0
             d = datetime.datetime(yr,mth,day,hr,mins,secs)
         else:
             d = datetime.date(yr,mth,day)
@@ -408,10 +438,7 @@ class FieldWP(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        n=""
-        for c in flags:
-            if c not in "0123456789.": break
-            n = n + c
+        n = leading_number(flags)
         if len(n) > 0:
             s0, = M.func("$$VFILE^DILFD", n)
             return s0 == "0"
@@ -420,9 +447,9 @@ class FieldWP(Field):
     def init_type(self, fieldinfo):
         " Extract the wrap specification "
         super(FieldWP, self).init_type(fieldinfo)
-        fs = M.Globals["^DD"][fieldinfo[1]][".01"][0].value
+        subfileid = leading_number(strip_leading_chars(fieldinfo[1]))
+        fs = M.Globals["^DD"][subfileid][".01"][0].value
         self.wrapinfo = fs.split("^")[1]
-
 
     def pyfrom_internal(self, s):
         if s == "":
@@ -474,10 +501,9 @@ class FieldPointer(Field):
     def init_type(self, fieldinfo):
         " Extract the remote file id "
         super(FieldPointer, self).init_type(fieldinfo)
-        self.foreign_fileid = fieldinfo[1][1:]
-        if self.foreign_fileid[-1] == "'":
+        self.foreign_fileid = leading_number(strip_leading_chars(fieldinfo[1]))
+        if fieldinfo[1].find("'") != -1:
             self.laygo = False
-            self.foreign_fileid = self.foreign_fileid[:-1]
 
     def foreign_get(self, s, internal=True, fieldnames=None):
         """
@@ -488,7 +514,7 @@ class FieldPointer(Field):
         else:
             # cannot use the cached version, as it may not consistent fieldnames
             from vavista.fileman.dbsfile import DBSFile
-            ff = DBSFile(self._dd, internal=internal, fieldnames=fieldnames)
+            ff = DBSFile(self.dd, internal=internal, fieldnames=fieldnames)
             if not fieldnames:
                 self._ffile = ff
         return ff.get(s)
@@ -659,10 +685,7 @@ class FieldSubfile(Field):
 
     @classmethod
     def c_isa(cls, flags):
-        n=""
-        for c in flags:
-            if c not in "0123456789.": break
-            n = n + c
+        n = leading_number(strip_leading_chars(flags))
         if len(n) > 0:
             s0, = M.func("$$VFILE^DILFD", n)
             return s0 != "0"
@@ -671,13 +694,7 @@ class FieldSubfile(Field):
     @property
     def subfileid(self):
         if self._subfileid == None:
-            rv = ""
-            for c in self._fieldinfo[1]:
-                if c in "0123456789.":
-                    rv = rv + c
-                else:
-                    break
-            self._subfileid = rv
+            self._subfileid = leading_number(strip_leading_chars(self._fieldinfo[1]))
         return self._subfileid
 
     @property

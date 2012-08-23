@@ -3,6 +3,9 @@
     For subfiles, the values are returned as fields in the main file.
     if the subfile contains one field, it is a multiple value in the
     main file.
+
+    TODO: I do not have the ability to traverse a pointer when it is
+    in a subfile. This is a common idiom.
 """
 
 import unittest

@@ -28,6 +28,9 @@ class FilemanLockFailed(FilemanError):
         return """file [%s], row = [%s], timeout = [%s]""" \
             % (self.filename, self.row, self.timeout)
 
+def err_to_str(err):
+    return '\n'.join(["%s = %s" % x for x in err.serialise()])
+
 class DBSRow(object):
     """
         This is the key to the whole implementation.  This object maps to a single row
@@ -67,7 +70,7 @@ class DBSRow(object):
                 if type(fieldid) == tuple:
                     parent, child = fieldid
                     parent = dd.fields[parent]
-                    child = parent._dd.fields[child]
+                    child = parent.dd.fields[child]
                     fields[fieldid] = (parent, child)
                 else:
                     fields[fieldid] = dd.fields[fieldid]
@@ -198,14 +201,10 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow._retrieve() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
-                % (self._dd.filename, fileid, iens, fieldids), str(err))
+            raise FilemanError("""DBSRow.retrieve() file [%s], fileid = [%s], iens = [%s], fieldids = [%s], err = [%s]"""
+                % (self._dd.filename, fileid, iens, fieldids, err_to_str(err)))
 
-        try:
-            self._save_tmp_global()
-        except Exception, e:
-            print e
-            import pdb; pdb.post_mortem()
+        self._save_tmp_global()
 
     def as_list(self):
         """
@@ -289,13 +288,13 @@ class DBSRow(object):
                     else:
                         rowstore = store[iens] = dict()
 
+
                     # TODO: convert from internal/external to python
                     for fieldid, v in row.keys_with_decendants():
                         if self._internal:
                             rowstore[fieldid] = row[fieldid]['I'].value
                         else:
                             rowstore[fieldid] = row[fieldid].value
-
 
         # Now we have extracted the subfiles - we need to move the
         # data to where we can use it easier.
@@ -315,7 +314,10 @@ class DBSRow(object):
                 self._stored_data[fieldid] = sf_result = []
 
                 for iens, data in sf_data:
-                    sf_result.append(data.get(fieldid[1]))
+                    if type(fieldid) == tuple:
+                        sf_result.append(data.get(fieldid[1]))
+                    else:
+                        sf_result.append(data.get('.01', 'NO NAME'))
 
         self._changed = False
         self._changed_fields = []
@@ -442,8 +444,8 @@ class DBSRow(object):
             # ERR.DIERR.6.PARAM.IENS = "+1,"
             # ERR.DIERR.6.TEXT.1 = "The new record '+1,' lacks some required identifiers."
 
-            raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
-                % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+            raise FilemanError("""DBSRow.insert() : file [%s], fileid = [%s], err = [%s]"""
+                % (self._dd.filename, self._dd.fileid, err_to_str(err)))
         
         # What is the id of the new record?
         self._rowid = int(M.Globals[ienid]['1'].value)
@@ -477,8 +479,8 @@ class DBSRow(object):
             # Check for error
             err = M.Globals["ERR"]
             if err.exists():
-                raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+                raise FilemanError("""DBSRow.update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], err = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid, err_to_str(err)))
 
         # If there are subfiles, these will have to be processed.
         subfiles = set([x[0] for x in values.keys() if type(x) == tuple])
@@ -516,8 +518,8 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow._update_subfile() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
-                % (self._dd.filename, fileid, iens, fieldids), str(err))
+            raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], iens = [%s], fieldids = [%s], err = [%s]"""
+                % (self._dd.filename, fileid, iens, fieldids, err_to_str(err)))
 
         # Extract the result and store in rows.
         subfile_data = M.Globals[tmpid][subfile_dd._fileid]
@@ -582,8 +584,8 @@ class DBSRow(object):
             # Check for error
             err = M.Globals["ERR"]
             if err.exists():
-                raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+                raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], rowid = [%s], err = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid, err_to_str(err)))
 
         # Pass 2 - inserts
         if len(sf_new_data) > len(sf_live_data):
@@ -611,8 +613,8 @@ class DBSRow(object):
             # Check for error
             err = M.Globals["ERR"]
             if err.exists():
-                raise FilemanError("""DBSRow._update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid), str(err))
+                raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], rowid = [%s], err = [%s]"""
+                    % (self._dd.filename, self._dd.fileid, self._rowid, err_to_str(err)))
                 
         # pass 3 - deletes
         elif len(sf_new_data) < len(sf_live_data):
@@ -637,7 +639,7 @@ class DBSRow(object):
                     # Sets the flag, but no variables set
 
                     # This may just mean that the record does not exist
-                    raise FilemanError("""DBSRow.delete() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s]"""
+                    raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], rowid = [%s]"""
                         % (self._dd.filename, self._dd.fileid, self._rowid))
 
 
