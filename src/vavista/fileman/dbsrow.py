@@ -5,9 +5,8 @@
 """
 
 from vavista import M
-from vavista.fileman.dbsdd import FT_WP, DD, FT_SUBFILE
+from vavista.fileman.dbsdd import FT_WP, FT_SUBFILE
 from shared import FilemanError, ROWID, STRING
-from transaction import transaction_manager as transaction
 
 class FilemanValidationError(FilemanError):
     filename, row, fieldid, value, error_code, error_msg = None, None, None, None, None, None
@@ -84,110 +83,63 @@ class DBSRow(object):
         else:
             self._row_tmpid = "row%s" % id(self)
         self._stored_data = None
-        if rowid is None or tmpid is not None:
-            self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
-        elif type(rowid) == str and rowid.startswith("+"):
-            self._save_global(M.Globals[self._row_tmpid][self._dd.fileid][self._iens])
 
-    def _before_value_change(self, fieldid, global_var, value):
+    def validate_field(self, fieldid, global_var, value):
         """
-            This should be invoked before the application modifies a variable
-            in this row. This function should validate the value, apply any
-            formatting rules required and notify the transactional machinary 
-            that this object is changed.
+            This validator is of limited value. I should move it into dbsdd logic.
+            Basically it validates a single field, in "external" format.
+
+            I expect to use it for Mumps data.
         """
-        # At this stage, I just want to validate against the data 
-        # dictionary. At write time, the data will be fully validated.
+        M.Globals["ERR"].kill()
 
-        if not self._internal:
-            M.Globals["ERR"].kill()
+        # Validates single field against the data dictionary
+        s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
+            value, M.INOUT(""), "ERR")
 
-            # Validates single field against the data dictionary
-            s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
-                value, M.INOUT(""), "ERR")
+        err = M.Globals["ERR"]
 
-            err = M.Globals["ERR"]
+        # s0 should contain ^ for error, internal value for valid data
+        if s0 == "^":
+            error_code = err['DIERR'][1].value
+            error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
+            help_msg = [v for k,v in err['DIHELP'].items()]
 
-            # s0 should contain ^ for error, internal value for valid data
-            if s0 == "^":
-                error_code = err['DIERR'][1].value
-                error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
-                help_msg = [v for k,v in err['DIHELP'].items()]
+            # Invalid data - get the error from the ERR structure
+            raise FilemanValidationError(filename = self._dd.filename, row = self._rowid, 
+                    fieldid = fieldid, value = value, error_code = error_code, error_msg = error_msg,
+                    err = err, help=help_msg)
 
-                # Invalid data - get the error from the ERR structure
-                raise FilemanValidationError(filename = self._dd.filename, row = self._rowid, 
-                        fieldid = fieldid, value = value, error_code = error_code, error_msg = error_msg,
-                        err = err, help=help_msg)
+        # If err exists, then some form of programming error
+        if err.exists():
+            raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
+                % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
 
-            # If err exists, then some form of programming error
-            if err.exists():
-                raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
-
-        if not self._changed:
-            self._lock()
-            transaction.join(self)
-
-        if fieldid not in self._changed_fields:
-            self._changed_fields.append(fieldid)
-
-        return value
-
-    def _lock(self, timeout=5):
+    def lock(self, timeout=5):
         """
-            Lock a global (path to a row).
-            This functionality is here so that transaction management
-            can remove locks on a commit, abort
+            Lock a record.
         """
-        if self._locked: return
+        g_path = self._dd.m_closed_form(self._rowid)
 
-        if self._rowid: # nothing to lock
+        # Set the timeout
+        M.Globals["DILOCKTM"].value = timeout
 
-            g_path = self._dd.m_closed_form(self._rowid)
+        # use DILF^LOCK function to perform the lock
+        M.proc("LOCK^DILF", g_path)
 
-            # Set the timeout
-            M.Globals["DILOCKTM"].value = timeout
+        # result is returned in $T
+        rv, = M.mexec("set l0=$T", M.INOUT(0))
+        if rv != 1:
+            raise FilemanLockFailed(filename=self._dd.filename, row=self._rowid, timeout=timeout)
 
-            # use DILF^LOCK function to perform the lock
-            M.proc("LOCK^DILF", g_path)
-
-            # result is returned in $T
-            rv, = M.mexec("set l0=$T", M.INOUT(0))
-            if rv != 1:
-                raise FilemanLockFailed(filename=self._dd.filename, row=self._rowid, timeout=timeout)
-            self._locked = 1
-
-    def _unlock(self):
+    def unlock(self):
+        """
+            Unlock the record
+        """
         # Locking is done via an M level routine on the record global
-        if self._locked:
-            g_path = self._dd.m_closed_form(self._rowid)
-            M.mexec(str("LOCK -%s" % g_path))   # TODO: mexec to take unicode
-            self._locked = False
+        g_path = self._dd.m_closed_form(self._rowid)
+        M.mexec(str("LOCK -%s" % g_path))   # TODO: mexec to take unicode
             
-    def _on_commit(self):
-        if self._rowid and not (type(self._rowid) == str and self._rowid.startswith("+")):
-            self._update()
-        else:
-            self._insert()
-            
-    def _on_abort(self):
-        pass
-
-    def _on_after_commit(self):
-        self._unlock()
-        self._changed = False
-        self._changed_fields = []
-            
-    def _on_after_abort(self):
-        self._unlock()
-        self._changed = False
-        self._changed_fields = []
-
-        #   Any data in the object is dirty 
-        #   this should force it to reload if it is accessed again
-        if self._changed:
-            self._stored_data = None
-
     @property
     def _data(self):
         # for lazy evaluation
@@ -226,106 +178,11 @@ class DBSRow(object):
                         rv.append('%s (%s) = "%s"' % (fn, k, v))
         return '\n'.join(rv)
 
-    def keys(self):
-        return self._data.keys()
-
-    def items(self):
-        return self._data.items()
-
     def _field_from_id(self, fieldid):
         """
             Given a fieldid, return the data dictionary object.
         """
         return self._dd._fields[fieldid]
-
-    def __getitem__(self, fieldid, default=''):
-        value = self._getitem(fieldid, default=default).value
-        field = self._field_from_id(fieldid)
-        if self._internal:
-            return field.pyfrom_internal(value)
-        else:
-            return field.pyfrom_external(value)
-        
-    def _getitem(self, fieldid, default=''):
-        """
-            Return a field using array notation
-
-            print record[.01]
-
-            Item does not exist, but is a valid fieldid, insert it.
-            This occurs on an insert. The inserted field does not
-            affect the transaction tracking.
-        """
-        fieldid = str(fieldid)
-        try:
-            if self._internal:
-                return self._data[fieldid]['I']
-            else:
-                return self._data[fieldid]
-        except:
-            if fieldid in self._fieldids:
-                v = M.Globals[self._row_tmpid][self._dd.fileid][self._iens][fieldid]
-                v.value = default
-                self._stored_data[fieldid] = v
-                if self._internal:
-                    v['I']._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
-                else:
-                    v._on_before_change = lambda g,v,fieldid=fieldid: self._before_value_change(fieldid, g, v)
-                return self._getitem(fieldid)
-
-            raise FilemanError("""DBSRow (%s=%s): invalid attribute error""" %
-                (self._dd.fileid, self._dd.filename), fieldid)
-
-    def __getattr__(self, key):
-        """
-            Called for misses
-        """
-        fieldid = self._dd.attrs.get(key, None)
-        if fieldid is not None:
-            return self[fieldid]
-        raise AttributeError(key)
-
-    def __setattr__(self, key, value):
-        """
-            called by:
-
-                record.FIELD = 4
-
-            If FIELD exists, set its value
-            If FIELD does not exist, and is in the data dictionary, create it.
-            If FIELD does not exist, and is not the data dictionary, raise exception.
-        """
-        if key[0] not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
-            return super(DBSRow, self).__setattr__(key, value)
-
-        if not self._internal:
-            raise FilemanError("You must use internal format to modify a file")
-
-        fieldid = self._dd.attrs.get(key, None)
-        if fieldid is not None:
-            field = self._field_from_id(fieldid)
-            if self._internal:
-                mvalue = field.pyto_internal(value)
-            else:
-                mvalue = field.pyto_external(value)
-
-
-            # Special case for WP fields. If the return value is a list,
-            # then it is inserted as fields within the main field, and the
-            # path to it is stored in the value.
-
-            # See fm22_0pm.pdf, page 194
-            if type(mvalue) == list and field.fmql_type == FT_WP:
-                external_path = self._getitem(fieldid)
-                self._getitem(fieldid).value = external_path.closed_form
-                for i in range(len(mvalue)):
-                    node = external_path[str(i+1)]
-                    node.value = mvalue[i]
-            else:
-                field.validate_insert(mvalue, self._internal)
-                self._getitem(fieldid).value = mvalue
-            return
-        raise AttributeError(key)
 
     def __del__(self):
         # Each time we retrieve a row, it is copied to a temporary store. 
@@ -336,7 +193,7 @@ class DBSRow(object):
         if self._row_fdaid:
             M.Globals[self._row_fdaid].kill()
 
-    def _retrieve(self):
+    def retrieve(self):
         """
             Retrieve values
             Internal or External
@@ -347,28 +204,19 @@ class DBSRow(object):
         if self._internal:
             flags = flags + "I"
 
-        if self._dd.parent_dd:
-            # TODO: this is not quite worked out - rowid in the parent and the subfile
-            #       are mixed up this is not quite worked out - rowid in the parent and the subfile
-            #       are mixed up
-            fileid = self._dd.parent_dd.fileid
-            iens = self._iens
-            fieldids = str(self._dd.parent_fieldid) + "**"
-        else:
-            f = []
-            for (k,v) in self._fields.items():
-                if type(k) == tuple:
-                    if k[0]+"*" not in f:
-                        f.append(k[0]+"*")
+        f = []
+        for (k,v) in self._fields.items():
+            if type(k) == tuple:
+                if k[0]+"*" not in f:
+                    f.append(k[0]+"*")
+            else:
+                if v.fmql_type in [FT_SUBFILE]:
+                    f.append(k+"*")
                 else:
-                    if v.fmql_type in [FT_SUBFILE]:
-                        f.append(k+"*")
-                    else:
-                        f.append(k)
-            #fieldids = ";".join([k for (k,v) in self._fields.items() if v.fmql_type not in [FT_SUBFILE]])
-            fieldids = ";".join(f)
-            fileid = self._dd.fileid
-            iens = self._iens
+                    f.append(k)
+        fieldids = ";".join(f)
+        fileid = self._dd.fileid
+        iens = self._iens
 
         M.proc("GETS^DIQ",
             fileid,              # numeric file id
@@ -503,71 +351,6 @@ class DBSRow(object):
         self._changed = False
         self._changed_fields = []
 
-
-    def _save_global(self, gl):
-        """
-            Extract the result and store in python variable
-            I need to revisit this. It only copies the data when using
-            external access.
-        """
-        if self._internal:
-            # need to retrieve a sub-field
-            self._stored_data = {}
-            for k, v in gl.keys_with_decendants():
-                self._stored_data[k] = gl[k]
-        else:
-            self._stored_data = dict(gl)
-
-        self._changed = False
-        self._changed_fields = []
-
-        # Add in trigger
-        for key, value in self._stored_data.items():
-            if self._internal:
-                value['I']._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
-            else:
-                value._on_before_change = lambda g,v,fieldid=key: self._before_value_change(fieldid, g, v)
-
-    def _retrieve_subfile(self, fieldid, subfile_dd, subfile):
-        """
-            Retrieve all the rows of a subfile (multiple field)
-        """
-        M.Globals["ERR"].kill()
-
-        flags = 'N'    # no nulls
-        if self._internal:
-            flags = flags + "I"
-
-        fileid = self._dd.fileid
-        iens = self._iens
-        fieldids = str(fieldid) + "*"
-
-        tmpid = self._row_tmpid + str(fieldid)
-
-        M.proc("GETS^DIQ",
-            fileid,              # numeric file id
-            iens,                # IENS
-            fieldids,            # Fields to return 
-            flags,               # Flags N=no nulls, R=return field names
-            tmpid,
-            "ERR")
-
-        # Check for error
-        err = M.Globals["ERR"]
-        if err.exists():
-            raise FilemanError("""DBSRow._retrieve_subfile() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
-                % (self._dd.filename, fileid, iens, fieldids), str(err))
-
-        # Extract the result and store in rows.
-        subfile_data = M.Globals[tmpid][subfile_dd._fileid]
-
-        rv = []
-        for iens in [r[0] for r in subfile_data.keys_with_decendants()]:
-            row = DBSRow(subfile, subfile_dd, iens, tmpid=tmpid)
-            rv.append(row)
-
-        return rv
-
     def _create_fda(self, values=None):
         """
             For the current record, copy all changed fields to an FDA record
@@ -655,14 +438,9 @@ class DBSRow(object):
         else:
             return None
 
-    def _insert(self, values=None):
+    def insert(self, values=None):
         """
-            Create a new record
-
-            This is intended to be used during a transaction commit.
-            TODO: that concept is invalid - GT.M should manage transactions.
-
-            UPDATE^DIE(FLAGS,FDA_ROOT,IEN_ROOT,MSG_ROOT)
+            Create a new record. Values is a dictionary containing the values.
         """
         M.Globals["ERR"].kill()
 
@@ -703,12 +481,10 @@ class DBSRow(object):
         self._stored_data = None
         return self._rowid
 
-    def _update(self, values=None):
+    def update(self, values=None):
         """
             Write changed data back to the database.
             
-            This is intended to be used during a transaction commit.
-
             TODO: dbsdd validation for fields
         """
         # Create an FDA format array for fileman
@@ -771,7 +547,7 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow._retrieve_subfile() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
+            raise FilemanError("""DBSRow._update_subfile() : FILEMAN Error : file [%s], fileid = [%s], iens = [%s], fieldids = [%s]"""
                 % (self._dd.filename, fileid, iens, fieldids), str(err))
 
         # Extract the result and store in rows.
@@ -909,7 +685,6 @@ class DBSRow(object):
                     DIK = "The file global - open format"
                     DA = "The entry number in the file"
 
-            TODO: Queue for Txn Commit
             TODO: Validate permissions
         """
         if not self._internal:
@@ -972,66 +747,3 @@ class DBSRow(object):
             foreignkeyval = field_dd.pyfrom_external(foreignkeyval)
 
         return field_dd.foreign_get(foreignkeyval, internal=True, fieldnames=fieldnames)
-
-    def subfile_cursor(self, fieldname):
-        """
-            Provide a cursor to traverse a multi field.
-            Multi fields can have numerous attributes, so they cannot be translated to simple list. 
-
-            Subfiles are stored in the main file. They have a logical id, so that a 
-            data dictionary can be stored, but they are not stored under this id.
-        """
-        from vavista.fileman.dbsfile import DBSFile
-
-        fieldid = self._dd.attrs.get(fieldname, None)
-        if fieldid is None:
-            raise AttributeError(fieldname)
-
-        field_dd = self._dd.fields[fieldid]
-        glindex = field_dd.storage.split(';')[0]
-
-        # get the file header from the subfile
-        gl = self._dd.m_open_form()
-        header_gl = gl + str(self._rowid) + "," + glindex +",0)"
-        if M.Globals.from_closed_form(header_gl).exists():
-            subfile_header = M.Globals.from_closed_form(header_gl).value
-            filename, subfileid_with_flags, lastnum, rowcount = subfile_header.split("^")
-            if not rowcount or int(rowcount) == 0:
-                return []
-
-            # Create dbsrows for each record in the sub-file
-            subfileid = ''.join([c for c in subfileid_with_flags if c in "0123456789."])
-            subfile_dd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid)
-            subfile = DBSFile(subfile_dd, internal=self._dbsfile.internal)
-
-            return self._retrieve_subfile(fieldid, subfile_dd, subfile)
-
-        else:
-            return []
-
-    def subfile_new(self, fieldname):
-        """
-            Create a new record in a sub-file.
-        """
-        from vavista.fileman.dbsfile import DBSFile
-
-        fieldid = self._dd.attrs.get(fieldname, None)
-        if fieldid is None:
-            raise AttributeError(fieldname)
-
-        # get the file header from the subfile
-        gl = self._dd.m_open_form()
-        header_gl = gl + str(self._rowid) + "," + str(fieldid) +",0)"
-
-        subfile_header = M.Globals.from_closed_form(header_gl).value
-        filename, subfileid, lastnum, rowcount = subfile_header.split("^")
-        if not rowcount or int(rowcount) == 0:
-            return []
-
-        subfile_dd = DD(subfileid, parent_dd=self._dd, parent_fieldid=fieldid)
-        subfile = DBSFile(subfile_dd, internal=self._dbsfile.internal)
-
-        # this is not terribly clear - the iens should be
-        # +1,rowid, I think the order is the reverse order of the path
-        return DBSRow(subfile, subfile_dd, rowid='+1,%s,' % fieldid)
-

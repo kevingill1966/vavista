@@ -173,7 +173,7 @@ class DBSFile(object):
             sequence of sequences.
         """
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
-        record._retrieve() # raises exception on failure
+        record.retrieve() # raises exception on failure
         try:
             return record.as_list()
         except Exception, e:
@@ -235,7 +235,7 @@ class DBSFile(object):
 
         values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items()])
         record = DBSRow(self, self.dd, _rowid, internal=self.internal, fieldids=values.keys())
-        record._update(values)
+        record.update(values)
 
     def insert(self, **kwargs):
         """
@@ -246,7 +246,7 @@ class DBSFile(object):
 
         values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items()])
         record = DBSRow(self, self.dd, None, internal=self.internal, fieldids=values.keys())
-        return record._insert(values)
+        return record.insert(values)
 
     def traverse_pointer(self, fieldname, value, fieldnames=None):
         """
