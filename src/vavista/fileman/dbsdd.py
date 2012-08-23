@@ -91,6 +91,7 @@ class Field(object):
     m_valid = None
     title = None
     fieldhelp = None
+    fileid = None
 
     def __init__(self, fieldid, label, fieldinfo):
         self.label = label
@@ -186,6 +187,38 @@ class Field(object):
         """
         if self.mandatory and (s is None or s == ""):
             raise FilemanError("""Field is mandatory""")
+
+    def fm_validate_insert(self, value):
+        """
+            This validator checks the field using the Fileman logic.
+            Since it expects value to be in Fileman External format
+            and we are using Internal Format, it is of limited use.
+
+            Also, I don't know how it will work on a sub-file.
+        """
+        M.Globals["ERR"].kill()
+
+        # Validates single field against the data dictionary
+        s0, = M.proc("CHK^DIE", self.fileid, self.fieldid, "H",
+            value, M.INOUT(""), "ERR")
+
+        err = M.Globals["ERR"]
+
+        # s0 should contain ^ for error, internal value for valid data
+        if s0 == "^":
+            error_code = err['DIERR'][1].value
+            error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
+            help_msg = [v for k,v in err['DIHELP'].items()]
+
+            raise FilemanError(
+                """DBSDD.fm_validate_insert(): fileid = [%s], fieldid = [%s], value = [%s], error_code = [%s], error_msg = [%s], help = [%s]"""
+                % (self.fileid, self.fieldid, value, error_code, error_msg, help_msg))
+
+        # If err exists, then some form of programming error
+        if err.exists():
+            raise FilemanError("""DBSDD.fm_validate_insert(): fileid = [%s], fieldid = [%s], value = [%s], err = [%s]"""
+                % (self.fileid, self.fieldid, value, '\n'.join(err)))
+
 
 class FieldDatetime(Field):
     """
@@ -615,7 +648,9 @@ class FieldMUMPS(Field):
             via the low-level DBS code on a commit.
         """
         super(FieldMUMPS, self).validate_insert(s, internal)  # mandatory check
-        pass
+
+        # Ask Fileman to validate the value
+        self.fm_validate_insert(s)
 
 class FieldSubfile(Field):
     fmql_type = FT_SUBFILE
@@ -844,6 +879,7 @@ class _DD(object):
                     for klass in FIELD_TYPES:
                         if klass.isa(ftype):
                             finst = f[fieldid] = klass(fieldid, label, info)
+                            klass.fileid = self.fileid
                             attrs[label] = fieldid
                             break
                     if finst is None:

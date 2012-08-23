@@ -84,37 +84,6 @@ class DBSRow(object):
             self._row_tmpid = "row%s" % id(self)
         self._stored_data = None
 
-    def validate_field(self, fieldid, global_var, value):
-        """
-            This validator is of limited value. I should move it into dbsdd logic.
-            Basically it validates a single field, in "external" format.
-
-            I expect to use it for Mumps data.
-        """
-        M.Globals["ERR"].kill()
-
-        # Validates single field against the data dictionary
-        s0, = M.proc("CHK^DIE", self._dd.fileid, fieldid, "H",
-            value, M.INOUT(""), "ERR")
-
-        err = M.Globals["ERR"]
-
-        # s0 should contain ^ for error, internal value for valid data
-        if s0 == "^":
-            error_code = err['DIERR'][1].value
-            error_msg = '\n'.join([v for k,v in err['DIERR'][1]['TEXT'].items()])
-            help_msg = [v for k,v in err['DIHELP'].items()]
-
-            # Invalid data - get the error from the ERR structure
-            raise FilemanValidationError(filename = self._dd.filename, row = self._rowid, 
-                    fieldid = fieldid, value = value, error_code = error_code, error_msg = error_msg,
-                    err = err, help=help_msg)
-
-        # If err exists, then some form of programming error
-        if err.exists():
-            raise FilemanError("""DBSRow._set_value(): file [%s], fileid = [%s], rowid = [%s], fieldid = [%s], value = [%s]"""
-                % (self._dd.filename, self._dd.fileid, self._rowid, fieldid, value), str(err))
-
     def lock(self, timeout=5):
         """
             Lock a record.
