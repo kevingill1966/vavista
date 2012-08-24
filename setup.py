@@ -53,7 +53,7 @@ I use:
             print "Compiling GT.M source: ", cmd
             rv = os.system(cmd)
             if rv == 0:
-                rv = os.system('mv vavistagtm.m vavistagtm.o "%s"' % gtm_dist)
+                rv = os.system('/bin/mv vavistagtm.m vavistagtm.o "%s"' % gtm_dist)
             if rv != 0:
                 sys.stderr.write("""
 ******************************************************************************
@@ -66,18 +66,19 @@ Check that the folder exists and that you have write permissions to that folder.
 $gtm_dist = "%s"
 
 ******************************************************************************
-""") % gtm_dist
+""" % gtm_dist)
         finally:
             os.chdir(cwd)
 
 _gtm = Extension('vavista.gtm%s._gtm' % gtm_ver,
     define_macros = [('MAJOR_VERSION', MAJOR_VERSION),
                      ('MINOR_VERSION', MINOR_VERSION)],
-    include_dirs = ['/usr/include/python2.7',
-                    '/usr/local/gtm'],
-    libraries = ['gtmshr','python2.7', "rt"],
+    include_dirs = ['/usr/include/python2.6',
+		    '/opt/fis-gtm/V5.4.002B_x86_64'],
+    libraries = ['gtmshr','python2.6', "rt"],
     library_dirs = [gtm_dist],
     sources = ['src/vavista/_gtm/_gtm.c'])
+
 
 ext.append(_gtm)
 
