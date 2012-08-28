@@ -12,7 +12,7 @@ from dbsrow import DBSRow
 
 class IndexIterator:
     def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True,
-        from_rule=">=", to_rule="<", raw=False, getter=None, description=None):
+        from_rule=">=", to_rule="<", raw=False, getter=None, description=None, filters=None):
         """
             An iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -34,6 +34,7 @@ class IndexIterator:
         self.raw = raw
         self.getter = getter
         self.description = description
+        self.filters = filters
 
         if self.from_value != None and self.to_value != None:
             if self.ascending:
@@ -119,6 +120,12 @@ class IndexIterator:
                 # No match
                 lastrowid = None
                 continue
+
+            if self.filters:
+                # Are filters to be applied?
+                if not self.filters(lastrowid):
+                    continue
+
             self.lastrowid = lastrowid
             if self.raw:
                 return self.lastkey, self.lastrowid
@@ -188,7 +195,8 @@ class DBSFile(object):
         else:
             return record.as_list()
 
-    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False):
+    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False,
+            filters=None):
         """
             Return an iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -222,8 +230,27 @@ class DBSFile(object):
             else:
                 assert to_rule in (">", ">=", "=")
         gl_prefix = self.dd.m_open_form()
+
+        if filters:
+            filter_function = lambda rowid: self.filter_row(rowid, filters)
+        else:
+            filter_function = None
+
         return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
-            from_rule, to_rule, raw, getter=self.get, description=self.description)
+            from_rule, to_rule, raw, getter=self.get, description=self.description,
+            filters=filter_function)
+
+    def filter_row(self, _rowid, filters):
+        """
+            Return true of false for whether rowid matches the set of filters,
+            These are intended to handle the django filters.
+
+            column > x
+            column < x
+
+            I need to switch to a 'raw' global retriever to get this working.
+        """
+        return True
 
     def update(self, _rowid, **kwargs):
         """

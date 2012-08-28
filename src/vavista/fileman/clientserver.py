@@ -9,10 +9,13 @@
 import json
 import struct
 import socket
+import select
 import logging
 import datetime
 
 logger = logging.getLogger(__file__)
+
+from shared import FilemanErrorNumber, FilemanError
 
 def json_encoder(obj):
     """
@@ -37,8 +40,15 @@ def json_decoder(dct):
     elif '__date__' in dct:
         dt = dct['__date__']
         return datetime.datetime.strptime(dt, "%Y-%m-%d")
+    elif '__exception__' in dct:
+        if dct["__exception__"] == "FilemanErrorNumber":
+            codes = dct["codes"]
+            texts = dct["texts"]
+            raise FilemanErrorNumber(codes=codes, texts=texts)
+        if dct["__exception__"] == "FilemanError":
+            message = dct["message"]
+            raise FilemanError(message)
     return dct
-
 
 class FilemandClient:
     socket = None
@@ -89,11 +99,14 @@ class FilemandClient:
             recv_buffer.append(buffer)
             recv_len += len(buffer)
 
-        # TODO: I want to be able to propagate exception from the server to the client.
+        # To propagate exception from the server to the client.
+        # The exception name is in the __exception__ value in the dict.
+        # raised by the json decoder
 
         if length:
             recv_buffer = ''.join(recv_buffer)
-            return json.loads(recv_buffer, object_hook=json_decoder)
+            response = json.loads(recv_buffer, object_hook=json_decoder)
+            return response
 
     def connect(self, DUZ=None, DT=None, isProgrammer=None):
         return self._mk_request("connect", data = dict(DUZ=None, DT=None, isProgrammer=None))
@@ -176,14 +189,26 @@ class FilemandServer:
                 4 byte network format integer
                 data (json encoded)
         """
+        self.socket.setblocking(1)
+        # TODO SO_REUSEADDR
         try:
             while 1:
+
+                try:
+                    ready = select.select([self.socket], [], [], 60)
+                    if not ready[0]:
+                        continue
+                except Exception, e:
+                    continue
+
                 length_message = self.socket.recv(4)
+
                 if len(length_message) == 0:
                     logger.info("Zero length message received, shutting down")
                     self.socket.shutdown(1)
                     self.socket.close()
                     return
+
                 assert len(length_message) == 4, "Error too few bytes returned from read"
                 length = struct.unpack("!L", length_message)[0]
                 assert length > 0, "A zero length frame was received"
@@ -207,10 +232,17 @@ class FilemandServer:
                 fn = getattr(self, "cmd_" + request_id)
                 assert fn, "Unknown request [%s] received" % request_id
 
-                if request:
-                    response = fn(handle, json.loads(request))
-                else:
-                    response = fn(handle)
+                try:
+                    if request:
+                        response = fn(handle, json.loads(request))
+                    else:
+                        response = fn(handle)
+                except FilemanErrorNumber, e:
+                    logger.exception("request [%s], raised a FilemanErrorNumber", request_id)
+                    response = {"__exception__": "FilemanErrorNumber", "codes": e.codes, "texts": e.texts}
+                except FilemanError, e:
+                    logger.exception("request [%s], raised a FilemanError", request_id)
+                    response = {"__exception__": "FilemanError", "message": e.message()}
 
                 if response == None:
                     self.socket.sendall(struct.pack("!L", 0))
@@ -286,6 +318,9 @@ class FilemandServer:
         dbsfile = self.handles[long(handle)]
         return dbsfile.delete(_rowid=request['_rowid'])
 
+    # I want to pass in:
+    # order by
+    # filters
     def cmd_dbsfile_traverser(self, handle, request):
         dbsfile = self.handles[long(handle)]
         rv = []

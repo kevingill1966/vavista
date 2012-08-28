@@ -19,6 +19,24 @@ DT (the date/time format string). These are passed to the Mumps interpreter.::
 
     dbs = fileman.connect("0", "")
 
+If you are running a remote filemand server, you can connect to it via the 
+network,::
+`
+    dbs = fileman.connect("0", "", remote=True, host='localhost', port=9010)
+
+filemand
+--------
+
+vavista installs a simple daemon called filemand. This allows the separation
+of the client code and the server code. This is particularly useful for 
+threaded applications, or where GT.M terminal manipulation would upset the
+client screens.::
+
+    filemand --help
+    filemand --host localhost --port 9010
+    filemand --dameon
+    filemand --log /var/log/filemand.log
+
 Files
 -----
 
@@ -45,6 +63,8 @@ Example::
     patients = dbs.get_file('PATIENT', fieldnames=['NAME'])
     patient1 = patients.get('1')
     print "patient %s is %s" % (1, patient1[0])
+    patient1 = patients.get('1', asdict=True)
+    print "patient %s is %s" % (1, patient1['NAME'])
 
 The result from a get is a tuple, containing the requested fields. The layout
 of that tuple can be examined using the *description* property on the DBSFile

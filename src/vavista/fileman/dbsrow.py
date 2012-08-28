@@ -6,7 +6,7 @@
 
 from vavista import M
 from vavista.fileman.dbsdd import FT_WP, FT_SUBFILE
-from shared import FilemanError, ROWID, STRING
+from shared import FilemanError, ROWID, STRING, FilemanErrorNumber
 
 class FilemanValidationError(FilemanError):
     filename, row, fieldid, value, error_code, error_msg = None, None, None, None, None, None
@@ -201,8 +201,7 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow.retrieve() file [%s], fileid = [%s], iens = [%s], fieldids = [%s], err = [%s]"""
-                % (self._dd.filename, fileid, iens, fieldids, err_to_str(err)))
+            raise FilemanErrorNumber(dierr=err)
 
         self._save_tmp_global()
 
@@ -444,8 +443,7 @@ class DBSRow(object):
             # ERR.DIERR.6.PARAM.IENS = "+1,"
             # ERR.DIERR.6.TEXT.1 = "The new record '+1,' lacks some required identifiers."
 
-            raise FilemanError("""DBSRow.insert() : file [%s], fileid = [%s], err = [%s]"""
-                % (self._dd.filename, self._dd.fileid, err_to_str(err)))
+            raise FilemanErrorNumber(dierr=err)
         
         # What is the id of the new record?
         self._rowid = int(M.Globals[ienid]['1'].value)
@@ -479,8 +477,7 @@ class DBSRow(object):
             # Check for error
             err = M.Globals["ERR"]
             if err.exists():
-                raise FilemanError("""DBSRow.update() : FILEMAN Error : file [%s], fileid = [%s], rowid = [%s], err = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid, err_to_str(err)))
+                raise FilemanErrorNumber(dierr=err)
 
         # If there are subfiles, these will have to be processed.
         subfiles = set([x[0] for x in values.keys() if type(x) == tuple])
@@ -518,8 +515,7 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
-            raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], iens = [%s], fieldids = [%s], err = [%s]"""
-                % (self._dd.filename, fileid, iens, fieldids, err_to_str(err)))
+            raise FilemanErrorNumber(dierr=err)
 
         # Extract the result and store in rows.
         subfile_data = M.Globals[tmpid][subfile_dd._fileid]
@@ -584,8 +580,7 @@ class DBSRow(object):
             # Check for error
             err = M.Globals["ERR"]
             if err.exists():
-                raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], rowid = [%s], err = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid, err_to_str(err)))
+                raise FilemanErrorNumber(dierr=err)
 
         # Pass 2 - inserts
         if len(sf_new_data) > len(sf_live_data):
@@ -613,8 +608,7 @@ class DBSRow(object):
             # Check for error
             err = M.Globals["ERR"]
             if err.exists():
-                raise FilemanError("""DBSRow._update_subfile() : file [%s], fileid = [%s], rowid = [%s], err = [%s]"""
-                    % (self._dd.filename, self._dd.fileid, self._rowid, err_to_str(err)))
+                raise FilemanErrorNumber(dierr=err)
                 
         # pass 3 - deletes
         elif len(sf_new_data) < len(sf_live_data):
