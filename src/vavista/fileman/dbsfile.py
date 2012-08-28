@@ -76,7 +76,7 @@ class IndexIterator:
 
             if lastrowid is None:
                 # locate the next matching index value
-                lastkey, = M.mexec("""set s0=$order(%ss0),%s)""" % (self.gl, asc), M.INOUT(lastkey))
+                lastkey, = M.mexec("""set s0=$order(%ss0),%s)""" % (self.gl, asc), M.INOUT(str(lastkey)))
                 if lastkey == "":
                     raise StopIteration
 
@@ -114,7 +114,7 @@ class IndexIterator:
 
             # Have the key, get the first matching rowid
             lastrowid, = M.mexec("""set s0=$order(%s"%s",s1),%d)""" % (self.gl, self.lastkey, asc),
-                    M.INOUT(lastkey), lastrowid)
+                    M.INOUT(str(lastkey)), lastrowid)
             if lastrowid == "":
                 # No match
                 lastrowid = None
@@ -137,19 +137,28 @@ class DBSFile(object):
     internal = True
     fieldids = None
     _description = None
+    _fieldnames = None
 
     def __init__(self, dd, internal=True, fieldids=None, fieldnames=None):
         self.dd = dd
         self.internal = internal
         if fieldnames:
             self.fieldids = [dd.attrs[n] for n in fieldnames]
+            self._fieldnames = fieldnames
         else:
             self.fieldids = fieldids
+            self._fieldnames = None
 
         assert (dd.fileid is not None)
 
     def __str__(self):
         return "DBSFILE %s (%s)" % (self.dd.filename, self.dd.fileid)
+
+    def fieldnames(self):
+        if self._fieldnames is None:
+            # TODO: if only have fieldids, have to look them up
+            return self.fieldids
+        return self._fieldnames
 
     @property
     def description(self):
@@ -174,7 +183,10 @@ class DBSFile(object):
         """
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
         record.retrieve() # raises exception on failure
-        return record.as_list()
+        if asdict:
+            return dict(zip(self.fieldnames(), record.as_list()))
+        else:
+            return record.as_list()
 
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False):
         """

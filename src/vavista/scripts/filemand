@@ -1,0 +1,86 @@
+#!/usr/bin/env python
+
+# The fileman library can run stand-alone or client-server.
+# to run client server, this server must be running.
+
+# This is a forking server, i.e. it create a child to handle
+# each connection. This is because GT.M is single threaded.
+
+# filemand does not implement any security. If you expose it
+# on the non-loopback interface, you must firewall it yourself.
+
+import os
+import socket
+import argparse
+import logging
+
+import logging
+FORMAT = '%(process)d %(asctime)-15s %(message)s'
+#logging.basicConfig(format=FORMAT, level=logging.DEBUG, filename="/var/log/filemand.log")
+logging.basicConfig(format=FORMAT, level=logging.DEBUG)
+logger = logging.getLogger('filemand')
+logger.info("Filemand starting up")
+
+from vavista.fileman.clientserver import FilemandServer
+
+class MainServer:
+
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self.serversocket = None
+        logger.debug("MainServer Initialising, host=%s, port=%s", host, port)
+
+    def __call__(self):
+        """
+            Accept connections
+        """
+        try:
+            self.serversocket = serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            serversocket.bind((self.host, self.port))
+            serversocket.listen(5)  
+            logger.debug("Waiting for connections")
+            while 1:
+                (clientsocket, address) = serversocket.accept()
+                logger.debug("Connection received from %s (socket %s)" ,address, clientsocket)
+                pid = self._process_connection(clientsocket, address)
+                if not pid:
+                    break
+
+        finally:
+            # Clean up code - for parent only
+            if self.serversocket:
+                logger.debug("Server shutting down")
+                self.serversocket.shutdown(1)
+                self.serversocket.close()
+                self.serversocket = None
+
+    def _process_connection(self, sock, address):
+        """
+            Handle a connection.
+        """
+        pid = os.fork()
+        if pid:
+            # Server - Close socket and let child deal with it.
+            sock.close()
+            return pid
+
+        # Child
+        self.serversocket.close()
+        self.serversocket = None
+        fs_server = FilemandServer(sock)
+        fs_server()
+        return None 
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Fileman Server.')
+    parser.add_argument("--host", help="Choose the host interface, default = '127.0.0.1'",
+           default='127.0.0.1', action="store")
+    parser.add_argument("-p", "--port", help="Choose the port, default = '9010'",
+           default=9010, type=int, action="store")
+
+    args = parser.parse_args()
+    server = MainServer(args.host, args.port)
+    server()

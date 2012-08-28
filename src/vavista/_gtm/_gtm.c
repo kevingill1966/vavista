@@ -266,7 +266,7 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
             return NULL;
     }
 
-    if (!PyString_Check(py_eval)) {
+    if (!PyString_AsString(py_eval)) {
         sprintf(msgbuf, "command parameter must be a string");
         PyErr_SetString(GTMException, msgbuf);
         return NULL;
@@ -316,7 +316,7 @@ static PyObject *GTM_mexec(PyObject *self, PyObject *args) {
                 }
                 nextDouble++;
             }
-            else if (PyString_Check(value)) {
+            else if (PyString_Check(value) || PyUnicode_Check(value)) {
                 assert(nextString < 8);
                 alloced[nextString] = s[nextString] = malloc(MAXVAL);
                 if (s[nextString] == NULL) {

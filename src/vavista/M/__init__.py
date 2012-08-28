@@ -22,6 +22,8 @@ if gtmroutines.find("vavista/src/_gtm") == -1:
 # the version information. This allows me to connect to multiple versions
 # of GT.M on the same server.
 gtm_dist = os.getenv("gtm_dist")
+if gtm_dist == None:
+    raise Exception("gtm_dist environment variable is not configured")
 gtm_ver = os.path.basename(gtm_dist).replace(".", "_").replace("-", "_")
 vavista = __import__("vavista.gtm%s._gtm" % gtm_ver)
 _mumps = getattr(vavista, "gtm"+gtm_ver)._gtm

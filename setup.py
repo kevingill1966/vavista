@@ -2,6 +2,8 @@
 import os, sys
 import os.path
 
+
+
 from distutils.core import setup
 from distutils.command.install_data import install_data
 from setuptools import Extension, find_packages
@@ -73,9 +75,9 @@ $gtm_dist = "%s"
 _gtm = Extension('vavista.gtm%s._gtm' % gtm_ver,
     define_macros = [('MAJOR_VERSION', MAJOR_VERSION),
                      ('MINOR_VERSION', MINOR_VERSION)],
-    include_dirs = ['/usr/include/python2.6',
-		    '/opt/fis-gtm/V5.4.002B_x86_64'],
-    libraries = ['gtmshr','python2.6', "rt"],
+    include_dirs = ['/usr/include/python2.%d' % sys.version_info.minor,
+		    gtm_dist],
+    libraries = ['gtmshr','python2.%d' % sys.version_info.minor, "rt"],
     library_dirs = [gtm_dist],
     sources = ['src/vavista/_gtm/_gtm.c'])
 
@@ -101,6 +103,7 @@ setup(
     packages=find_packages('src'),
     package_dir={'': 'src'},
     data_files=[('vavista/_gtm', ['src/vavista/_gtm/calltab.ci', 'src/vavista/_gtm/vavistagtm.m']),],
+    scripts = ["src/vavista/scripts/filemand"],
     ext_modules=ext,
     include_package_data=True,
     test_suite = "vavista.tests",

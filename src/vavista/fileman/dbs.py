@@ -13,20 +13,78 @@ from shared import FilemanError
 from dbsdd import DD
 from dbsfile import DBSFile
 
+from clientserver import FilemandClient
+
+class DBSFileRemote:
+    """
+        Object to handle the communications with one remote file.
+        Used in place of DBSFile in the client.
+    """
+    _description = None
+
+    def __init__(self, remote, name, internal=True, fieldnames=None):
+        self.remote = remote
+        rv = self.remote.get_file(name=name, internal=internal, fieldnames=fieldnames)
+        self.handle = rv['handle']
+
+    @property
+    def description(self):
+        if self._description is None:
+            self._description = self.remote.dbsfile_description(self.handle)
+        return self._description
+
+    def get(self, rowid, asdict=False):
+        return self.remote.dbsfile_get(self.handle, rowid, asdict=asdict)
+
+    def insert(self, **kwargs):
+        return self.remote.dbsfile_insert(self.handle, **kwargs)
+
+    def update(self, **kwargs):
+        return self.remote.dbsfile_update(self.handle, **kwargs)
+
+    def lock(self, _rowid, timeout=5):
+        return self.remote.dbsfile_lock(self.handle, _rowid=_rowid, timeout=timeout)
+
+    def unlock(self, _rowid):
+        return self.remote.dbsfile_unlock(self.handle, _rowid=_rowid)
+
+    def delete(self, _rowid):
+        return self.remote.dbsfile_delete(self.handle, _rowid=_rowid)
+
+    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False, limit=100):
+        return self.remote.dbsfile_traverser(self.handle,
+            index, from_value=from_value, to_value=to_value, ascending=ascending,
+            from_rule=from_rule, to_rule=to_rule, raw=raw, limit=limit)
+
 class DBS(object):
 
-    def __init__(self, DUZ, DT, isProgrammer=False):
+    def __init__(self, DUZ, DT, isProgrammer=False, remote=False, host='', port=9010):
         """
         """
-        self.DUZ = DUZ
-        self.DT = DT
-        self.isProgrammer = isProgrammer
+        if DUZ is None:
+            self.DUZ = "0"
+        else:
+            self.DUZ = DUZ
+        if DT is None:
+            self.DT = ""
+        else:
+            self.DT = DT
+        self.isProgrammer = isProgrammer and True or False
+
+        if remote:
+            self.remote = FilemandClient(host, port)
+            self.remote.connect(DUZ=DUZ, DT=DT, isProgrammer=isProgrammer)
+        else:
+            self.remote = None
 
     def list_files(self):
         """
             Oddly, I cannot see how to list the files using the DBS API.
             This is required for debugging etc.
         """
+        if self.remote:
+            return self.remote.list_files()
+
         M.mset('DUZ',self.DUZ)
         M.mset('U', "^")
         if self.isProgrammer:
@@ -46,6 +104,9 @@ class DBS(object):
             Look up the ^DIC array and find the file number for the specified file, 
             e.g. FILE = 1 - result is a string.
         """
+        if self.remote:
+            return DBSFileRemote(self.remote, name, internal=internal, fieldnames=fieldnames)
+
         dd = DD(name)
         if dd.fileid is None:
             raise FilemanError("""DBS.get_file() : File not found [%s]""" % name)
@@ -56,3 +117,4 @@ class DBS(object):
             Provided to expose the data dictionary via api
         """
         return DD(name)
+
