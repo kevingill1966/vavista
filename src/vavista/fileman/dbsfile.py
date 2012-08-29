@@ -10,6 +10,8 @@ from shared import FilemanError
 
 from dbsrow import DBSRow
 
+# TODO: offset and limit required here
+
 class IndexIterator:
     def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True,
         from_rule=">=", to_rule="<", raw=False, getter=None, description=None, filters=None):
@@ -62,6 +64,9 @@ class IndexIterator:
             asc = 1
         else:
             asc = -1
+
+        # TODO: Fileman seems to structure indexes with keys in the global path
+        #       or in the value - need to investigate further
 
         # There is a mad collation approach in M, where numbers sort before non-numbers.
         # this really messes up the keys.
@@ -131,6 +136,128 @@ class IndexIterator:
                 return self.lastkey, self.lastrowid
             return self.getter(self.lastrowid)
 
+class RowIterator:
+    def __init__(self, gl, from_rowid=None, to_rowid=None, ascending=True,
+        from_rule=">=", to_rule="<", raw=False, getter=None, description=None, filters=None, limit=None, offset=None):
+        """
+            An iterator which will traverse a table
+        """
+        self.gl = gl
+        self.from_rowid = from_rowid
+        self.to_rowid = to_rowid
+        self.ascending = ascending
+        self.from_rule = from_rule
+        self.to_rule = to_rule
+        self.raw = raw
+        self.getter = getter
+        self.description = description
+        self.filters = filters
+        self.limit = limit
+        self.offset = offset
+
+        if self.from_rowid != None and self.to_rowid != None:
+            if self.ascending:
+                assert(self.from_rowid <= self.to_rowid)
+            else:
+                assert(self.to_rowid <= self.from_rowid)
+        
+        # TODO: full table descending - highest numeric value
+        if self.from_rowid is None:
+            self.lastrowid = 0
+        else:
+            self.lastrowid = int(self.from_rowid)
+
+        if self.offset:
+            self.skip_rows = int(self.offset)
+        else:
+            self.skip_rows = 0
+
+        self.results_returned = 0
+        if self.limit:
+            self.limit = int(self.limit)
+
+        self.first_pass = True
+
+    def __iter__(self):
+        return self
+
+    @property
+    def rowid(self):
+        return self.lastrowid
+
+    def next(self):
+
+        # Have we exceeded limit
+        if self.limit:
+            if self.results_returned >= self.limit:
+                raise StopIteration
+
+        lastrowid = self.lastrowid
+        if self.ascending:
+            asc = 1
+        else:
+            asc = -1
+
+        while 1:
+            # If this is the first pass, we may have the id of a record, which needs to 
+            # be verified
+            found = False
+            if self.first_pass:
+                self.first_pass = False
+                d, = M.mexec("""set l0=$data(%sl0))""" % (self.gl), M.INOUT(lastrowid))
+                if d:
+                    found = True
+                    lastrowid = int(lastrowid)
+
+            if not found:
+                lastrowid, = M.mexec("""set s0=$order(%ss0),%d)""" % (self.gl, asc),
+                        M.INOUT(str(lastrowid)))
+                if lastrowid == "":
+                    raise StopIteration
+                try:
+                    lastrowid = int(lastrowid)
+                except ValueError:
+                    # Once you go beyond numeric values, you are into indexes
+                    raise StopIteration
+
+
+            if self.ascending:
+                if self.from_rowid is not None:
+                    if lastrowid == self.from_rowid and self.from_rule == ">":
+                        continue
+                if self.to_rowid is not None:
+                    if lastrowid >= self.to_rowid and self.to_rule == "<":
+                        raise StopIteration
+                    if lastrowid > self.to_rowid and self.to_rule == "<=":
+                        raise StopIteration
+
+            else: # descending:
+                if self.from_rowid is not None:
+                    if lastrowid == self.from_rowid and self.from_rule == "<":
+                        continue
+                if self.to_rowid is not None:
+                    if lastrowid <= self.to_rowid and self.to_rule == ">":
+                        raise StopIteration
+                    if lastrowid < self.to_rowid and self.to_rule == ">=":
+                        raise StopIteration
+
+            if self.filters:
+                # Are filters to be applied?
+                if not self.filters(lastrowid):
+                    continue
+
+            if self.skip_rows > 0:
+                self.skip_rows -= 1
+                continue
+
+            self.lastrowid = lastrowid
+
+            self.results_returned += 1
+
+            if self.raw:
+                return self.lastrowid
+            return self.getter(self.lastrowid)
+
 class DBSFile(object):
     """
         This class provides mechanisms to return rows.
@@ -196,7 +323,7 @@ class DBSFile(object):
             return record.as_list()
 
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False,
-            filters=None):
+            filters=None, limit=None, offset=None):
         """
             Return an iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -236,9 +363,14 @@ class DBSFile(object):
         else:
             filter_function = None
 
-        return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
-            from_rule, to_rule, raw, getter=self.get, description=self.description,
-            filters=filter_function)
+        if index:
+            return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
+                from_rule, to_rule, raw, getter=self.get, description=self.description,
+                filters=filter_function)
+        else:
+            return RowIterator(gl_prefix, from_value, to_value, ascending,
+                from_rule, to_rule, raw, getter=self.get, description=self.description,
+                filters=filter_function, limit=limit, offset=offset)
 
     def filter_row(self, _rowid, filters):
         """
