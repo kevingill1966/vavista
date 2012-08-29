@@ -417,6 +417,7 @@ class DBSRow(object):
         # Create an FDA format array for fileman
         fdaid = self._create_fda(values)
         ienid = "ien%s" % id(self)
+        M.Globals[ienid].kill()
 
         # Flags:
         # E - use external formats
