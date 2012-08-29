@@ -27,7 +27,7 @@ class TestTextline(unittest.TestCase):
 
     # ^DIZ record
     DIZ = [
-        ('^DIZ(9999903,0)', 'PYTEST1^9999903^')
+        ('^DIZ(9999903,0)', 'PYTEST1^9999903^0^0')
     ]
 
     # ^DD record
@@ -157,10 +157,6 @@ class TestTextline(unittest.TestCase):
             Insert multiple items. Verify that traversal back and 
             forward works.
         """
-
-        # TODO:
-        # There is an instability here - If I print out the global
-        # after each insert this logic works !!!
         transaction.begin()
         pytest1 = self.dbs.get_file("PYTEST1")
         for i in range(10):
