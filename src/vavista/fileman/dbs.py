@@ -52,10 +52,15 @@ class DBSFileRemote:
         return self.remote.dbsfile_delete(self.handle, _rowid=_rowid)
 
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None,
-            raw=False, limit=100, offset=None, asdict=False):
+            raw=False, limit=100, offset=None, asdict=False, filters=None):
         return self.remote.dbsfile_traverser(self.handle,
             index, from_value=from_value, to_value=to_value, ascending=ascending,
-            from_rule=from_rule, to_rule=to_rule, raw=raw, limit=limit, offset=offset, asdict=asdict)
+            from_rule=from_rule, to_rule=to_rule, raw=raw, limit=limit, offset=offset, asdict=asdict,
+            filters=filters)
+
+    def count(self, limit=None):
+        return self.remote.dbsfile_count(self.handle, limit=limit)
+
 
 class DBS(object):
 

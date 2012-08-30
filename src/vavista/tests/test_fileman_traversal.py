@@ -134,6 +134,27 @@ class TestTraversal(unittest.TestCase):
         self._cleanupFile()
 
 
+    def test_query(self):
+        """
+            use a query to read the file.
+        """
+        pytest1 = self.dbs.get_file("PYTEST1")
+        transaction.begin()
+        for i in range(10):
+            pytest1.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
+        transaction.commit()
+
+        self.assertEqual(pytest1.count(), 10)
+
+        # This cursor returns a list of row numbers
+        cursor = pytest1.traverser(None, raw=True, limit=4, filters=[("NAME", "=", "ROW4")])
+        result = list(cursor)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(len(result[0]), 2)  # file traversal returns only rowids
+        self.assertEqual(result[0][0], 'ROW4')
+        self.assertEqual(result[0][1], '5')
+
+
     def test_traversal_file(self):
         """
             Insert multiple items. Verify that traversal back and 
@@ -144,6 +165,8 @@ class TestTraversal(unittest.TestCase):
         for i in range(10):
             pytest1.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
         transaction.commit()
+
+        self.assertEqual(pytest1.count(), 10)
 
         # This cursor returns a list of row numbers
         cursor = pytest1.traverser(None, from_value=4, raw=True, limit=4)

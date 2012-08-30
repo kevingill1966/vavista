@@ -747,8 +747,9 @@ class _DD(object):
         Load the data dictionary for a FILE
     """
     _fileid = None
-    _gl = None
+    _cache_gl = None
     _indices = _fields = None
+    _new_indices = None
     filename = None
     fieldnames = None
     _attrs = None
@@ -773,7 +774,7 @@ class _DD(object):
 
                 # work out the base global from the parent
                 #parent_gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
-                self._gl = parent_dd._gl + str(parent_fieldid) + ","
+                self._cache_gl = parent_dd._gl + str(parent_fieldid) + ","
 
             elif M.Globals["^DIC"][fileid]["0"].exists():
                 dic_header = M.Globals["^DIC"][fileid]["0"].value
@@ -798,6 +799,22 @@ class _DD(object):
             if rv != '':
                 self._fileid = rv
         return self._fileid
+
+    def indices_for_column(self, colname):
+        """
+            Return the indices which index the named column
+        """
+        rv = []
+
+        fieldid = self.attrs[colname]
+
+        for index in self.indices:
+            if index.columns[0] == fieldid:
+                rv.append(index)
+
+        # TODO: New indices
+
+        return rv
 
     @property
     def indices(self):
@@ -845,10 +862,12 @@ class _DD(object):
             GTM>zwrite ^DD("IX",3,*)
             ^DD("IX",3,0)="200^AVISIT^This is a regular index of the remote DUZ and Station number.^R^^R^IR^W^200.06^^^^^S"
         """
-        from vavista.fileman import connect
-        c = connect("0","")
-        f = c.get_file("INDEX")
-        return list(f.traverser("B", from_value=self.fileid, to_value=self.fileid))
+        if self._new_indices is None:
+            from vavista.fileman import connect
+            c = connect("0","")
+            f = c.get_file("INDEX")
+            self._new_indices = list(f.traverser("B", from_value=self.fileid, to_value=self.fileid))
+        return self._new_indices
 
     @property
     def attrs(self):
@@ -925,8 +944,6 @@ class _DD(object):
         """
             Return the closed form for a record from this file.
         """
-        if self._gl is None:
-            self._gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
         if self._gl.endswith(","):
             return "%s%s0)" % (self._gl, rowid)
         else:
@@ -936,9 +953,13 @@ class _DD(object):
         """
             Return the closed form for a record from this file.
         """
-        if self._gl is None:
-            self._gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
         return self._gl
+
+    @property
+    def _gl(self):
+        if self._cache_gl == None:
+            self._cache_gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
+        return self._cache_gl
 
 
 def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):

@@ -36,6 +36,7 @@ class FilemanErrorNumber(FilemanError):
         else:
             self.texts = []
         if dierr:
+            print err
             for errnum, code in dierr['DIERR'].keys_with_decendants():
                 if errnum == 'E':
                     continue
@@ -70,11 +71,12 @@ def valid_rowid(rowid):
         if str(int(rowid)) == rowid:
             return True
     except:
-        return True
+        # Either a decimal value or an index
+        pass
 
     try:
         f = str(float(rowid))
-        if f[0] == 0:
+        if f[0] == '0':
             f = f[1:]
         if f == rowid:
             return True

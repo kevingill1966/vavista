@@ -12,6 +12,7 @@ import socket
 import select
 import logging
 import datetime
+import time
 
 logger = logging.getLogger(__file__)
 
@@ -155,16 +156,20 @@ class FilemandClient:
             data=dict(_rowid=_rowid))
 
     def dbsfile_traverser(self, handle, index, from_value, to_value, ascending,
-            from_rule, to_rule, raw, limit, offset, asdict):
+            from_rule, to_rule, raw, limit, offset, asdict, filters):
         fieldnames, rows = self._mk_request("dbsfile_traverser", handle=handle,
             data = dict(index=index, from_value=from_value, to_value=to_value, 
                 ascending=ascending, from_rule=from_rule, to_rule=to_rule, 
-                raw=raw, limit=limit, offset=offset))
+                raw=raw, limit=limit, offset=offset, filters=filters))
         for rowid, row in rows:
             if asdict:
                 row = dict(zip(fieldnames, row))
                 row['_rowid'] = rowid
             yield row
+
+    def dbsfile_count(self, handle, limit):
+        return self._mk_request("dbsfile_count", handle=handle,
+            data=dict(limit=limit))
 
     def __del__(self):
         self.socket.shutdown(1)
@@ -237,11 +242,16 @@ class FilemandServer:
                 fn = getattr(self, "cmd_" + request_id)
                 assert fn, "Unknown request [%s] received" % request_id
 
+                timeStart = time.time()
                 try:
                     if request:
                         response = fn(handle, json.loads(request))
                     else:
                         response = fn(handle)
+
+                    logger.debug("request_id:[%s], handle:[%s], data:[%s] took %f seconds",
+                        request_id, handle, request, time.time() - timeStart)
+
                 except FilemanErrorNumber, e:
                     logger.exception("request [%s], raised a FilemanErrorNumber", request_id)
                     response = {"__exception__": "FilemanErrorNumber", "codes": e.codes, "texts": e.texts}
@@ -332,10 +342,15 @@ class FilemandServer:
         limit = request['limit']
         cursor = dbsfile.traverser(index=request['index'], from_value=request['from_value'],
                 to_value=request['to_value'], ascending=request['ascending'],
-                from_rule=request['from_rule'], to_rule=request['to_rule'], raw=request['raw'])
+                from_rule=request['from_rule'], to_rule=request['to_rule'], raw=request['raw'],
+                offset=request['offset'], filters=request['filters'])
         for i, row in enumerate(cursor):
             rv.append([cursor.rowid, row])
             if limit and i >= limit-1:
                 break
         return (dbsfile.fieldnames(), rv)
 
+    def cmd_dbsfile_count(self, handle, request):
+        dbsfile = self.handles[long(handle)]
+        limit = request['limit']
+        return dbsfile.count(limit = limit)

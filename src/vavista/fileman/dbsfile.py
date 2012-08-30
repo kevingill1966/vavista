@@ -19,7 +19,7 @@ class IndexIterator:
             An iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
 
-            Indexes are stored:
+            Indices are stored:
                 GLOBAL,INDEXID,VALUE,ROWID=""
             ^DIZ(999900,"B","hello there from unit test2",183)=""
             ^DIZ(999900,"B","hello there from unit test2",184)=""
@@ -65,7 +65,7 @@ class IndexIterator:
         else:
             asc = -1
 
-        # TODO: Fileman seems to structure indexes with keys in the global path
+        # TODO: Fileman seems to structure indices with keys in the global path
         #       or in the value - need to investigate further
 
         # There is a mad collation approach in M, where numbers sort before non-numbers.
@@ -171,7 +171,7 @@ class RowIterator:
         if self.from_rowid is None:
             self.lastrowid = "0"
         else:
-            self.lastrowid = str(self.from_rowid)
+            self.lastrowid = ('%f' % self.from_rowid).rstrip('0').rstrip('.').lstrip('0') 
             if self.from_rowid > 0 and self.lastrowid[0] == "0":
                 self.lastrowid = self.lastrowid[1:]
             if self.lastrowid.endswith(".0"):
@@ -215,8 +215,8 @@ class RowIterator:
             if self.first_pass:
                 self.first_pass = False
                 if lastrowid and float(lastrowid) > 0:
-                    d, = M.mexec("""set s0=$data(%ss0))""" % (self.gl), M.INOUT(lastrowid))
-                    if d:
+                    row_exists, = M.mexec("""set s0=$data(%ss0))""" % (self.gl), M.INOUT(lastrowid))
+                    if int(row_exists):
                         found = True
 
             if not found:
@@ -326,8 +326,53 @@ class DBSFile(object):
         else:
             return record.as_list()
 
+    def _index_select(self, filters, orderby):
+        """
+            Given the filters, can we use an index
+
+            returns: filters, index, from_value, to_value, from_rule, to_rule
+        """
+        if len(filters) != 1:
+            return None
+
+        colname, comparator, value = filters[0]
+        if comparator not in ["<", "<=", "=", ">=", ">"]:
+            return None
+
+        if colname == "_rowid":
+            index = None
+        else:
+            indices = self.dd.indices_for_column(colname)
+            if not indices:
+                return None
+
+            # Find exact matching index for now
+            indices = [idx for idx in indices if len(idx.columns) == 1]
+            if not indices:
+                return None
+
+            index = indices[0].name
+
+        if comparator == "=":
+            from_value = to_value = value
+            from_rule, to_rule = ">=", "<="
+        elif comparator in [">", ">="]:
+            from_value = value
+            from_rule = comparator
+            to_value = to_rule = None
+        elif comparator in ["<", "<="]:
+            to_value = value
+            to_rule = comparator
+            from_value = from_rule = None
+        else:
+            assert(0)
+
+        filters = filters[1:]
+
+        return (filters, index, from_value, to_value, from_rule, to_rule)
+
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False,
-            filters=None, limit=None, offset=None):
+            filters=None, limit=None, offset=None, orderby=None):
         """
             Return an iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -336,6 +381,13 @@ class DBSFile(object):
             In the case where the from value = to value, we want an 
             exact match only.
         """
+        if filters and index is None and from_value == None and to_value == None:
+            # Index is not specified, but we have filters - look at the filters
+            # to see if we can select an index using them.
+            rv = self._index_select(filters, orderby)
+            if rv:
+                filters, index, from_value, to_value, from_rule, to_rule = rv
+
         if ascending:
             if from_rule is None:
                 if from_value and to_value and from_value == to_value:
@@ -386,6 +438,7 @@ class DBSFile(object):
 
             I need to switch to a 'raw' global retriever to get this working.
         """
+        import pdb; pdb.set_trace()
         return True
 
     def update(self, _rowid, **kwargs):
@@ -406,7 +459,8 @@ class DBSFile(object):
         fieldnames=kwargs.keys()
         fieldnames.sort()
 
-        values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items()])
+        # TODO: pass in primary key - if the client passes it, I am ignoring it.
+        values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items() if n != '_rowid'])
         record = DBSRow(self, self.dd, None, internal=self.internal, fieldids=values.keys())
         return record.insert(values)
 
@@ -428,3 +482,25 @@ class DBSFile(object):
     def delete(self, _rowid):
         record = DBSRow(self, self.dd, _rowid, internal=self.internal)
         return record.unlock()
+
+    def _file_header(self):
+        """
+            Extract the file header
+        """
+        gl_prefix = self.dd.m_open_form() + "0"
+        ns, path = gl_prefix.split("(")
+        g = M.Globals[ns]
+        for part in path.split(","):
+            g = g[part]
+        return g.value
+
+    def count(self, limit=None):
+        """
+            For now, assume that there are no filters, selects etc.
+        """
+        header = self._file_header()
+        parts = header.split("^")
+        if len(parts) > 3:
+            if parts[3]:
+                return int(parts[3])
+        return 0

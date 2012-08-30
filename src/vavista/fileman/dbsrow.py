@@ -128,10 +128,7 @@ class DBSRow(object):
                 return self._rowid
             if type(self._rowid) == float:
                 # str puts a leading 0 on values between 0 and 1
-                rv = str(self._rowid) + ","
-                if self._rowid > 0 and rv[0] == '0':
-                    rv = rv[1:]
-                return rv
+                return ('%f' % self._rowid).rstrip('0').rstrip('.').lstrip('0') + ","
             else:
                 return str(self._rowid) + ","
 
