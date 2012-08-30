@@ -23,7 +23,7 @@ class FilemanError(Exception):
             rv.append(unicode(self.kwargs))
         return '\n'.join(rv)
 
-class FilemanErrorNumber(Exception):
+class FilemanErrorNumber(FilemanError):
     """Fileman returned an error with information"""
     def __init__(self, dierr=None, codes=None, texts=None):
         """Create an error from the dierr structure"""
@@ -45,7 +45,7 @@ class FilemanErrorNumber(Exception):
                     text.append(dierr['DIERR'][errnum]['TEXT'][key].value) 
                 self.texts.append('\n'.join(text))
 
-    def __str__(self):
+    def message(self):
         rv = ["FilemanErrorNumber:"]
         for c, t in zip(self.codes, self.texts):
             rv.append("   %s: %s" % (c, t))
