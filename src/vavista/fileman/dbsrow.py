@@ -126,7 +126,14 @@ class DBSRow(object):
         else:
             if type(self._rowid) == str and self._rowid.endswith(','):
                 return self._rowid
-            return str(self._rowid) + ","
+            if type(self._rowid) == float:
+                # str puts a leading 0 on values between 0 and 1
+                rv = str(self._rowid) + ","
+                if self._rowid > 0 and rv[0] == '0':
+                    rv = rv[1:]
+                return rv
+            else:
+                return str(self._rowid) + ","
 
     def __str__(self):
         fields = self._dd.fields
@@ -201,6 +208,8 @@ class DBSRow(object):
         # Check for error
         err = M.Globals["ERR"]
         if err.exists():
+            print "error retrieving %s, file %s" % (iens, fileid)
+            import pdb; pdb.set_trace()
             raise FilemanErrorNumber(dierr=err)
 
         self._save_tmp_global()

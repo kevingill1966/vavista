@@ -105,7 +105,11 @@ class FilemandClient:
 
         if length:
             recv_buffer = ''.join(recv_buffer)
-            response = json.loads(recv_buffer, object_hook=json_decoder)
+            try:
+                response = json.loads(recv_buffer, object_hook=json_decoder)
+            except:
+                print recv_buffer
+                raise
             return response
 
     def connect(self, DUZ=None, DT=None, isProgrammer=None):
@@ -151,14 +155,15 @@ class FilemandClient:
             data=dict(_rowid=_rowid))
 
     def dbsfile_traverser(self, handle, index, from_value, to_value, ascending,
-            from_rule, to_rule, raw, limit):
+            from_rule, to_rule, raw, limit, offset, asdict):
         fieldnames, rows = self._mk_request("dbsfile_traverser", handle=handle,
             data = dict(index=index, from_value=from_value, to_value=to_value, 
                 ascending=ascending, from_rule=from_rule, to_rule=to_rule, 
-                raw=raw, limit=limit))
+                raw=raw, limit=limit, offset=offset))
         for rowid, row in rows:
-            row = dict(zip(fieldnames, row))
-            row['_rowid'] = rowid
+            if asdict:
+                row = dict(zip(fieldnames, row))
+                row['_rowid'] = rowid
             yield row
 
     def __del__(self):
@@ -330,7 +335,7 @@ class FilemandServer:
                 from_rule=request['from_rule'], to_rule=request['to_rule'], raw=request['raw'])
         for i, row in enumerate(cursor):
             rv.append([cursor.rowid, row])
-            if i >= limit:
+            if limit and i >= limit-1:
                 break
         return (dbsfile.fieldnames(), rv)
 

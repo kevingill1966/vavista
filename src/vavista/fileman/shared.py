@@ -56,3 +56,32 @@ class ROWID:
 
 class STRING:
     """Type describing the ROWID column"""
+
+
+#---------- Shared utility functions ---------------------------------
+
+def valid_rowid(rowid):
+    """
+        True or false - is this a valid rowid.
+        Row-ids are mumps numerics. Index ids can be "00"
+    """
+    try:
+        # Common rowid case - just an int.
+        if str(int(rowid)) == rowid:
+            return True
+    except:
+        return True
+
+    try:
+        f = str(float(rowid))
+        if f[0] == 0:
+            f = f[1:]
+        if f == rowid:
+            return True
+    except:
+        # Common Index case - not a valid number
+        return False
+
+    # Invalid numbers, used for indexes such as 00
+    return False
+

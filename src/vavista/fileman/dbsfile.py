@@ -6,7 +6,7 @@
 """
 
 from vavista import M
-from shared import FilemanError
+from shared import FilemanError, valid_rowid
 
 from dbsrow import DBSRow
 
@@ -155,6 +155,12 @@ class RowIterator:
         self.limit = limit
         self.offset = offset
 
+        # the new person file has non-integer user ids
+        if self.from_rowid != None:
+            self.from_rowid = float(self.from_rowid)
+        if self.to_rowid != None:
+            self.to_rowid = float(self.to_rowid)
+
         if self.from_rowid != None and self.to_rowid != None:
             if self.ascending:
                 assert(self.from_rowid <= self.to_rowid)
@@ -163,9 +169,13 @@ class RowIterator:
         
         # TODO: full table descending - highest numeric value
         if self.from_rowid is None:
-            self.lastrowid = 0
+            self.lastrowid = "0"
         else:
-            self.lastrowid = int(self.from_rowid)
+            self.lastrowid = str(self.from_rowid)
+            if self.from_rowid > 0 and self.lastrowid[0] == "0":
+                self.lastrowid = self.lastrowid[1:]
+            if self.lastrowid.endswith(".0"):
+                self.lastrowid = self.lastrowid[:-2]
 
         if self.offset:
             self.skip_rows = int(self.offset)
@@ -192,7 +202,7 @@ class RowIterator:
             if self.results_returned >= self.limit:
                 raise StopIteration
 
-        lastrowid = self.lastrowid
+        lastrowid = self.lastrowid    # This value should be a string throughout. 
         if self.ascending:
             asc = 1
         else:
@@ -204,41 +214,35 @@ class RowIterator:
             found = False
             if self.first_pass:
                 self.first_pass = False
-                d, = M.mexec("""set l0=$data(%sl0))""" % (self.gl), M.INOUT(lastrowid))
-                if d:
-                    found = True
-                    lastrowid = int(lastrowid)
+                if lastrowid and float(lastrowid) > 0:
+                    d, = M.mexec("""set s0=$data(%ss0))""" % (self.gl), M.INOUT(lastrowid))
+                    if d:
+                        found = True
 
             if not found:
-                lastrowid, = M.mexec("""set s0=$order(%ss0),%d)""" % (self.gl, asc),
-                        M.INOUT(str(lastrowid)))
-                if lastrowid == "":
-                    raise StopIteration
-                try:
-                    lastrowid = int(lastrowid)
-                except ValueError:
-                    # Once you go beyond numeric values, you are into indexes
+                lastrowid, = M.mexec("""set s0=$order(%ss0),%d)""" % (self.gl, asc), M.INOUT(lastrowid))
+                if not valid_rowid(lastrowid):
                     raise StopIteration
 
-
+            # Check boundary values
+            f_lastrowid = float(lastrowid)
             if self.ascending:
                 if self.from_rowid is not None:
-                    if lastrowid == self.from_rowid and self.from_rule == ">":
+                    if f_lastrowid == self.from_rowid and self.from_rule == ">":
                         continue
                 if self.to_rowid is not None:
-                    if lastrowid >= self.to_rowid and self.to_rule == "<":
+                    if f_lastrowid >= self.to_rowid and self.to_rule == "<":
                         raise StopIteration
-                    if lastrowid > self.to_rowid and self.to_rule == "<=":
+                    if f_lastrowid > self.to_rowid and self.to_rule == "<=":
                         raise StopIteration
-
             else: # descending:
                 if self.from_rowid is not None:
-                    if lastrowid == self.from_rowid and self.from_rule == "<":
+                    if f_lastrowid == self.from_rowid and self.from_rule == "<":
                         continue
                 if self.to_rowid is not None:
-                    if lastrowid <= self.to_rowid and self.to_rule == ">":
+                    if f_lastrowid <= self.to_rowid and self.to_rule == ">":
                         raise StopIteration
-                    if lastrowid < self.to_rowid and self.to_rule == ">=":
+                    if f_lastrowid < self.to_rowid and self.to_rule == ">=":
                         raise StopIteration
 
             if self.filters:
