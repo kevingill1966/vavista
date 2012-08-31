@@ -159,6 +159,22 @@ class Field(object):
         msgs.append("flags=%s" % self._fieldinfo[1])
         return "%s(%s=%s) %s" % (self.__class__.__name__, self.fieldid, self.label, " ".join(msgs))
 
+    def describe(self):
+        rv = {}
+        rv['mandatory'] = self.mandatory
+        rv['screened'] = self.screened
+        rv['storage'] = self.storage
+        rv['details'] = self.details
+        rv['m_valid'] = self.m_valid
+        rv['title'] = self.title
+        rv['fieldhelp'] = self.fieldhelp
+        rv['fieldinfo'] = self._fieldinfo
+        rv['flags'] = self._fieldinfo[1]
+        rv['name'] = self.label
+        rv['fieldid'] = self.fieldid
+        rv['fmql_type'] = self.fmql_type
+        return rv
+
     @classmethod
     def isa(cls, flags):
         """
@@ -252,6 +268,10 @@ class FieldDatetime(Field):
     fm_date_format = "%b %d, %Y"
     fm_datetime_format = "%b %d, %Y@%H:%M:%S"
 
+    def describe(self):
+        rv = super(FieldDatetime, self).describe()
+        return rv
+
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'D'
@@ -326,6 +346,11 @@ class FieldNumeric(Field):
     """
     fmql_type = FT_NUMERIC
     format_info = None
+
+    def describe(self):
+        rv = super(FieldNumeric, self).describe()
+        rv['format_info'] = self.format_info
+        return rv
 
     def init_type(self, fieldinfo):
         self.format_info = (18, 8)
@@ -494,6 +519,11 @@ class FieldPointer(Field):
     _ffile = None
     _dd = None
 
+    def describe(self):
+        rv = super(FieldPointer, self).describe()
+        rv['laygo'] = self.laygo
+        return rv
+
     @classmethod
     def c_isa(cls, flags):
         return flags and flags[0] == 'P'
@@ -578,6 +608,12 @@ class FieldVPointer(Field):
     of_map = None
     _ffile = None
     _dd = None
+
+    def describe(self):
+        rv = super(FieldVPointer, self).describe()
+        rv['remotefiles'] = self.remotefiles
+        rv['of_map'] = self.of_map
+        return rv
 
     def init_type(self, fieldinfo):
         " Extract the remote file specifications "
@@ -683,6 +719,13 @@ class FieldSubfile(Field):
     _dd = None
     _subfileid = None
 
+    def describe(self):
+        dd = self.dd
+        rv = super(FieldSubfile, self).describe()
+        rv['subfileid'] = self.subfileid
+        rv['children'] = dd.describe()
+        return rv
+
     @classmethod
     def c_isa(cls, flags):
         n = leading_number(strip_leading_chars(flags))
@@ -782,9 +825,9 @@ class _DD(object):
         self.filename = filename
 
     def _clean_label(self, s):
-        "The field names should match those used by fm projection - i.e. uppercase"
-        s = s.upper()
-        s = ''.join([c for c in s if c in "_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "])
+        "The field names should match those used by fmql - i.e. lowercase"
+        s = s.lower()
+        s = ''.join([c for c in s if c in "_abcdefghijklmnopqrstuvwxyz0123456789 "])
         s = s.replace(' ', '_')
         return s
 
@@ -904,7 +947,7 @@ class _DD(object):
                 if fieldid == "" or fieldid[0] not in "0123456789.":
                     break
 
-                info = info.split("^", 5) 
+                info = info.split("^", 4) 
                 label = self._clean_label(info[0])
                 try:
                     ftype = info[1]
@@ -961,6 +1004,47 @@ class _DD(object):
             self._cache_gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
         return self._cache_gl
 
+    def describe(self, fieldids=None):
+        """
+            Return a description of the table. This is to support the
+            generation of forms.
+        """
+        if not fieldids:
+            fieldids = self.fields.keys()
+        fieldids.sort()
+            
+        fields = []
+        for fieldid in fieldids:
+            fi = self.fields[fieldid].describe()
+            fi['fieldhelp2'] = self.fieldhelp2(fieldid)
+            fields.append(fi)
+
+        return {'fields': fields, 'fileid': self.fileid, 'filename': self.filename,
+                'description': self.filedescription()}
+
+    def fieldhelp2(self, fieldid):
+        """
+            Text displayed for two '??'
+        """
+        txt = []
+        dd_desc = M.Globals["^DD"][self.fileid][fieldid][21]
+        for k,v in dd_desc.keys_with_decendants():
+            txt.append(dd_desc[k][0].value)
+        return '\n'.join(txt)
+
+    def filedescription(self):
+        """
+            Grab the file description from the ^DIC record
+            M.Globals['^DIC'][fileid]['%D'].keys_with_decendants()
+            see: fm programmers guide 14.3
+        """
+        txt = []
+        dd_desc = M.Globals["^DIC"][self.fileid]['%D']
+        for k,v in dd_desc.keys_with_decendants():
+            v = dd_desc[k][0].value
+            if v:
+                txt.append(v)
+        return '\n'.join(txt)
 
 def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):
     """

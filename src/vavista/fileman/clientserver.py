@@ -134,6 +134,9 @@ class FilemandClient:
                 rv.append(row)
         return rv
 
+    def dbsfile_fm_description(self, handle):
+        return self._mk_request("dbsfile_fm_description", handle=handle)
+
     def dbsfile_get(self, handle, rowid, asdict):
         return self._mk_request("dbsfile_get", handle=handle, data=dict(rowid=rowid, asdict=asdict))
 
@@ -295,6 +298,10 @@ class FilemandServer:
         handle = id(dbsfile)
         self.handles[handle] = dbsfile
         return {'handle': str(handle)}
+
+    def cmd_dbsfile_fm_description(self, handle, request=None):
+        dbsfile = self.handles[long(handle)]
+        return dbsfile.fm_description
 
     def cmd_dbsfile_description(self, handle, request=None):
         from shared import STRING, ROWID

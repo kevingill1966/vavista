@@ -275,6 +275,7 @@ class DBSFile(object):
     internal = True
     fieldids = None
     _description = None
+    _fm_description = None
     _fieldnames = None
 
     def __init__(self, dd, internal=True, fieldids=None, fieldnames=None):
@@ -307,6 +308,17 @@ class DBSFile(object):
             record = DBSRow(self, self.dd, None, fieldids=self.fieldids, internal=self.internal)
             self._description = record.description
         return self._description
+
+    @property
+    def fm_description(self):
+        """
+            Feturn full description of the table'ish object.
+            Every thing that the data-dictionary has.
+            The client can try to sort it out.
+        """
+        if self._fm_description is None:
+            self._fm_description = self.dd.describe(fieldids = self.fieldids)
+        return self._fm_description
 
     def get(self, rowid, asdict=False):
         """

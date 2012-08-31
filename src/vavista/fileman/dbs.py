@@ -21,6 +21,7 @@ class DBSFileRemote:
         Used in place of DBSFile in the client.
     """
     _description = None
+    _fm_description = None
 
     def __init__(self, remote, name, internal=True, fieldnames=None):
         self.remote = remote
@@ -32,6 +33,12 @@ class DBSFileRemote:
         if self._description is None:
             self._description = self.remote.dbsfile_description(self.handle)
         return self._description
+
+    @property
+    def fm_description(self):
+        if self._fm_description is None:
+            self._fm_description = self.remote.dbsfile_fm_description(self.handle)
+        return self._fm_description
 
     def get(self, rowid, asdict=False):
         return self.remote.dbsfile_get(self.handle, rowid, asdict=asdict)
