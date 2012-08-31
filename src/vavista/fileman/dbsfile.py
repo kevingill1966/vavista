@@ -282,7 +282,7 @@ class DBSFile(object):
         self.dd = dd
         self.internal = internal
         if fieldnames:
-            self.fieldids = [dd.attrs[n] for n in fieldnames]
+            self.fieldids = [dd.attrs[n.lower()] for n in fieldnames]
             self._fieldnames = fieldnames
         else:
             self.fieldids = fieldids
@@ -460,7 +460,7 @@ class DBSFile(object):
         fieldnames=kwargs.keys()
         fieldnames.sort()
 
-        values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items()])
+        values = dict([(self.dd.attrs[n.lower()], v) for (n, v) in kwargs.items()])
         record = DBSRow(self, self.dd, _rowid, internal=self.internal, fieldids=values.keys())
         record.update(values)
 
@@ -472,7 +472,7 @@ class DBSFile(object):
         fieldnames.sort()
 
         # TODO: pass in primary key - if the client passes it, I am ignoring it.
-        values = dict([(self.dd.attrs[n], v) for (n, v) in kwargs.items() if n != '_rowid'])
+        values = dict([(self.dd.attrs[n.lower()], v) for (n, v) in kwargs.items() if n != '_rowid'])
         record = DBSRow(self, self.dd, None, internal=self.internal, fieldids=values.keys())
         return record.insert(values)
 

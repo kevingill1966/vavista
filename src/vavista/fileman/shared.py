@@ -36,7 +36,7 @@ class FilemanErrorNumber(FilemanError):
         else:
             self.texts = []
         if dierr:
-            print err
+            print dierr
             for errnum, code in dierr['DIERR'].keys_with_decendants():
                 if errnum == 'E':
                     continue

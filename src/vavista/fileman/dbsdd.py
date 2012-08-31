@@ -769,13 +769,13 @@ class AttrResolver:
         self._dd = dd
     def __getitem__(self, k):
         if k.find("->") == -1:
-            res = self._dd.fieldnames[k]
+            res = self._dd.fieldnames[k.lower()]
             if self._dd.fields[res].fmql_type == FT_SUBFILE:
                 return (res, ".01")
             else:
                 return res
         f_field, sf_field = k.split('->')
-        f_field = self._dd.fieldnames[f_field]
+        f_field = self._dd.fieldnames[f_field.lower()]
         dd = self._dd.fields[f_field].dd
         sf_field = dd.attrs[sf_field]
         return (f_field, sf_field)
