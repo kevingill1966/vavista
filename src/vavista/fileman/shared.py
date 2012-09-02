@@ -87,3 +87,10 @@ def valid_rowid(rowid):
     # Invalid numbers, used for indexes such as 00
     return False
 
+def clean_rowid(rowid):
+    """
+        What is the mumps equivilant number?
+    """
+    if rowid is None: return None
+    return ('%f' % float(rowid)).rstrip('0').rstrip('.').lstrip('0')
+

@@ -203,7 +203,6 @@ class DBSRow(object):
         if not gl_rec.exists():
             raise FilemanError("File %s, record %s, does not exist", dd.filename, self._rowid)
 
-
         for (fieldid, field) in self._fields.items():
             if type(fieldid) == tuple:                 # Subfile list
                 parent, child = field

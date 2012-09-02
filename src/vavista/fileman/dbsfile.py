@@ -27,6 +27,7 @@ class IndexIterator:
             ^DIZ(999900,"B","record 1",1)=""
 
         """
+        self.index = index
         self.gl = gl_prefix + '"%s",' % index
         self.from_value = from_value
         self.to_value = to_value
@@ -390,7 +391,7 @@ class DBSFile(object):
 
         return (filters, index, from_value, to_value, from_rule, to_rule)
 
-    def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False,
+    def traverser(self, index=None, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False,
             filters=None, limit=None, offset=None, orderby=None):
         """
             Return an iterator which will traverse an index.
