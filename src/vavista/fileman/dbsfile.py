@@ -348,46 +348,103 @@ class DBSFile(object):
 
             returns: filters, index, from_value, to_value, from_rule, to_rule
         """
-        if len(filters) != 1:
+
+        # 1. Identify the sargable columns
+        sargable = {}
+        for colname, comparator, value in filters:
+            if comparator in ["<", "<=", "=", ">=", ">"]:
+                # TODO in, like with leading const.
+                # TODO - ensure rhs is a constant
+                if colname not in sargable.keys():
+                    if colname == '_rowid':
+                        sargable[colname] = None
+                    else:
+                        sargable[colname] = []
+            elif comparator in ["in"] and len(value) == 1:
+                if colname not in sargable.keys():
+                    if colname == '_rowid':
+                        sargable[colname] = None
+                    else:
+                        sargable[colname] = []
+
+        if not sargable:
             return None
 
-        colname, comparator, value = filters[0]
-        if comparator.lower() == "in" and len(value) == 1:
-            comparator = "="
-            value = value[0]
+        sargable_fields = sargable.keys()
 
-        if comparator not in ["<", "<=", "=", ">=", ">"]:
-            return None
-
-        if colname == "_rowid":
+        # 2. find columns with indexes
+        #    choose the preferred index (sargable + orderable, fileorder, first index)
+        if len(sargable_fields) == 1 and sargable_fields[0] == '_rowid':
+            # direct record retrieve - indexes not necessary
+            colname = "_rowid"
             index = None
         else:
-            indices = self.dd.indices_for_column(colname)
-            if not indices:
-                return None
+            # There is a mis-match here colnames versus fieldids
+            sargable_fieldids = dict([(self.dd.attrs[colname], colname) for colname in sargable_fields])
+            for index in self.dd.indices:
+                if len(index.columns) == 1 and index.columns[0] in sargable_fieldids.keys():
+                    colname = sargable_fieldids[index.columns[0]]
+                    sargable[colname].append(index.name)
 
-            # Find exact matching index for now
-            indices = [idx for idx in indices if len(idx.columns) == 1]
-            if not indices:
-                return None
+            unindexed = [k for k,v in sargable.items() if len(v) == 0 and k != '_rowid']
+            for k in unindexed:
+                del sargable[k]
 
-            index = indices[0].name
+            if len(sargable) == 0:
+                return None  # no index
 
-        if comparator == "=":
-            from_value = to_value = value
-            from_rule, to_rule = ">=", "<="
-        elif comparator in [">", ">="]:
-            from_value = value
-            from_rule = comparator
-            to_value = to_rule = None
-        elif comparator in ["<", "<="]:
-            to_value = value
-            to_rule = comparator
-            from_value = from_rule = None
-        else:
-            assert(0)
+            if len(sargable) == 1:
+                colname = sargable.keys()[0]
+                # TODO : choose best index if more than one
+                index = sargable[colname][0]
+            else:
+                # More than one option. How to choose the best?
+                # result order, file order, other?
+                # or '=' has precendence over range?
 
-        filters = filters[1:]
+                # Choose first for now
+                colname = sargable.keys()[0]
+                index = sargable[colname][0]
+
+        # At this point we have choosen an index. Have to choose the 
+        # traversal rules, and remove the index from the filters
+        index_filters = [rule for rule in filters if rule[0] == colname]
+        filters = [rule for rule in filters if rule[0] != colname]
+
+        # 3.  Make the traversal rules (upper/lower bounds)
+        from_value, from_rule, to_value, to_rule = None, None, None, None
+
+        for colname, comparator, value in index_filters:
+            if comparator in [">", ">=", "=", 'in']:
+                # TODO: comparason based on mumps rules, not python rules
+                if from_value is None or from_value < value:
+                    if comparator == 'in':
+                        assert(len(value) == 1)
+                        from_value = value[0]
+                    else:
+                        from_value = value
+                    if comparator in ["=", 'in']:
+                        from_rule = ">="
+                    else:
+                        from_rule = comparator
+                elif from_value == value:
+                    if from_rule in [">="] and comparator in [">"]:
+                        from_rule = comparator
+            if comparator in ["<", "<=", "=", 'in']:
+                # TODO: comparason based on mumps rules, not python rules
+                if to_value is None or to_value > value:
+                    if comparator == 'in':
+                        assert(len(value) == 1)
+                        to_value = value[0]
+                    else:
+                        to_value = value
+                    if comparator in ["=", 'in']:
+                        to_rule = "<="
+                    else:
+                        to_rule = comparator
+                elif to_value == value:
+                    if to_rule in ["<="] and comparator in ["<"]:
+                        to_rule = comparator
 
         return (filters, index, from_value, to_value, from_rule, to_rule)
 
