@@ -278,6 +278,8 @@ class DBSFile(object):
     _description = None
     _fm_description = None
     _fieldnames = None
+    _field_cache = None
+    _gl_cache = None
 
     def __init__(self, dd, internal=True, fieldids=None, fieldnames=None):
         self.dd = dd
@@ -334,7 +336,7 @@ class DBSFile(object):
         """
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
         if self.internal:
-            record.raw_retrieve()
+            record.raw_retrieve(self._gl_cache)
         else:
             record.retrieve()
         if asdict:
@@ -490,8 +492,10 @@ class DBSFile(object):
             else:
                 assert to_rule in (">", ">=", "=")
         gl_prefix = self.dd.m_open_form()
+        self._gl_cache = {}
 
         if filters:
+            self._field_cache = {}
             filter_function = lambda rowid: self.filter_row(rowid, filters)
         else:
             filter_function = None
@@ -505,6 +509,14 @@ class DBSFile(object):
                 from_rule, to_rule, raw, getter=self.get, description=self.description,
                 filters=filter_function, limit=limit, offset=offset)
 
+    def _dd_field_byname(self, colname):
+        """ Cached lookup of data-dictionary """
+        field = self._field_cache.get(colname, None)
+        if field is None:
+            fieldid = self.dd.attrs[colname]
+            self._field_cache[colname] = field = self.dd.fields[fieldid]
+        return field
+
     def filter_row(self, _rowid, filters):
         """
             Return true of false for whether rowid matches the set of filters,
@@ -512,9 +524,27 @@ class DBSFile(object):
 
             column > x
             column < x
-
-            I need to switch to a 'raw' global retriever to get this working.
         """
+        rec = M.Globals.from_closed_form("%s%s)"%(self.dd.m_open_form(), _rowid))
+        for colname, comparator, value in filters:
+            field = self._dd_field_byname(colname)
+            db_value = field.retrieve(rec, self._gl_cache)
+
+            if comparator == '='  and not (db_value == value):
+                return False
+            if comparator == '>=' and not (db_value >= value):
+                return False
+            if comparator == '>'  and not (db_value > value):
+                return False
+            if comparator == '<'  and not (db_value < value):
+                return False
+            if comparator == '<=' and not (db_value <= value):
+                return False
+            if comparator == 'in' and not (db_value in value):
+                return False
+            # TODO: move the comparator logic into the data-dictionary.
+            #       logic will depend of field types.
+
         return True
 
     def update(self, _rowid, **kwargs):

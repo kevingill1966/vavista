@@ -45,7 +45,7 @@ class TestDjango(unittest.TestCase):
         ('^DD(9999903,0)', u'FIELD^^2^3'),
         ('^DD(9999903,0,"DT")', '3120716'),
         ('^DD(9999903,0,"IX","B",9999903,.01)', ''),
-        ('^DD(9999903,0,"IX","C",9999903,1)', ''),
+    #   ('^DD(9999903,0,"IX","C",9999903,1)', ''),
         ('^DD(9999903,0,"NM","PYTEST1")', ''),
         ('^DD(9999903,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
         ('^DD(9999903,.01,1,0)', '^.1'),
@@ -129,7 +129,7 @@ class TestDjango(unittest.TestCase):
 
         # Are indices setup
         dd = self.dbs.dd("PYTEST1")
-        self.assertEqual(len(dd.indices), 2)
+    #   self.assertEqual(len(dd.indices), 2)
         self.assertEqual(len(dd.new_indices), 1)
 
     def setUp(self):
@@ -246,6 +246,93 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(cursor.from_rule, '>=')
         self.assertEqual(cursor.to_rule, '<=')
 
+
+    def test_two_rule_index(self):
+        """
+            Two rules based on an indexed column
+        """
+        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+            'NAME', 'Textline_One', 'textline2'])
+
+        cursor = pytest1.traverser(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']])
+        result = [(cursor.lastrowid, values) for values in cursor]
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[1][1][0], 'ROW4')
+        self.assertEqual(result[2][1][0], 'ROW5')
+        self.assertEqual(result[3][1][0], 'ROW6')
+
+        # Check the query plan
+        self.assertEqual(cursor.__class__, IndexIterator)
+        self.assertEqual(cursor.index, 'B')
+        self.assertEqual(cursor.from_value, 'ROW3')
+        self.assertEqual(cursor.to_value, 'ROW6')
+        self.assertEqual(cursor.from_rule, '>=')
+        self.assertEqual(cursor.to_rule, '<=')
+
+    def test_no_index(self):
+        """
+            Search based on a non-indexed column
+        """
+        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+            'NAME', 'Textline_One', 'textline2'])
+
+        cursor = pytest1.traverser(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
+        result = [(cursor.lastrowid, values) for values in cursor]
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[1][1][0], 'ROW4')
+        self.assertEqual(result[2][1][0], 'ROW5')
+
+        # Check the query plan
+        self.assertEqual(cursor.__class__, RowIterator)
+        self.assertEqual(cursor.from_rowid, None)
+        self.assertEqual(cursor.to_rowid, None)
+
+    def test_index_plus_filter(self):
+        """
+            The filters contain an indexed value.
+            There is a secondary column constraint which 
+            reduces the selection
+        """
+        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+            'NAME', 'Textline_One', 'textline2'])
+
+        cursor = pytest1.traverser(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
+            ['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
+        result = [(cursor.lastrowid, values) for values in cursor]
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[1][1][0], 'ROW4')
+        self.assertEqual(result[2][1][0], 'ROW5')
+
+        # Check the query plan
+        self.assertEqual(cursor.__class__, IndexIterator)
+        self.assertEqual(cursor.index, 'B')
+        self.assertEqual(cursor.from_value, 'A')
+        self.assertEqual(cursor.to_value, 'Z')
+        self.assertEqual(cursor.from_rule, '>')
+        self.assertEqual(cursor.to_rule, '<')
+
+    def test_index_in(self):
+        """
+            right now this gives a non-indexed traversal. In reality,
+            it should create a third type of cursor, for multi-set retrieval.
+        """
+        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+            'NAME', 'Textline_One', 'textline2'])
+
+        cursor = pytest1.traverser(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]])
+        result = [(cursor.lastrowid, values) for values in cursor]
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[1][1][0], 'ROW4')
+        self.assertEqual(result[2][1][0], 'ROW5')
+
+        # Check the query plan
+        self.assertEqual(cursor.__class__, RowIterator)
+        self.assertEqual(cursor.from_rowid, None)
+        self.assertEqual(cursor.to_rowid, None)
 
 test_cases = (TestDjango, )
 

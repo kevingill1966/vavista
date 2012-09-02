@@ -266,12 +266,12 @@ class Field(object):
         gl_id, value = None, None
         gbl, piece =  storage.split(';')
         gl_piece = gl_rec[gbl]
-        if cache:
+        if cache != None:
             gl_id = gl_piece.closed_form
             value = cache.get(gl_id)
         if value == None:
             value = gl_piece.value
-            if cache:
+            if cache != None:
                 cache[gl_id] = value
         if not value:
             return None
