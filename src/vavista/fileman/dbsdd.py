@@ -58,7 +58,7 @@ import datetime
 
 from vavista import M
 
-from shared import  FilemanError
+from shared import  FilemanError, valid_rowid
 
 
 #---- [ Data Dictionary ]------------------------------------------------------------------
@@ -256,6 +256,35 @@ class Field(object):
             raise FilemanError("""DBSDD.fm_validate_insert(): fileid = [%s], fieldid = [%s], value = [%s], err = [%s]"""
                 % (self.fileid, self.fieldid, value, '\n'.join(err)))
 
+    def retrieve(self, gl_rec, cache):
+        """
+            Retrieve the item from the global. If there is a cache,
+            check to see if the required record is in the cache
+            before pulling it from M
+        """
+        storage = self.storage
+        gl_id, value = None, None
+        gbl, piece =  storage.split(';')
+        gl_piece = gl_rec[gbl]
+        if cache:
+            gl_id = gl_piece.closed_form
+            value = cache.get(gl_id)
+        if value == None:
+            value = gl_piece.value
+            if cache:
+                cache[gl_id] = value
+        if not value:
+            return None
+        if piece.startswith('E'):
+            # Extract Storage - programmers manual 15.3.2
+            e_off, e_end = piece[1:].split(',')
+            return value[int(e_off) -1: int(e_end)]
+        else:
+            parts = value.split("^")
+            piece = int(piece)
+            if len(parts) < piece:
+                return None
+            return parts[piece-1]
 
 class FieldDatetime(Field):
     """
@@ -479,6 +508,9 @@ class FieldWP(Field):
     def pyfrom_internal(self, s):
         if s == "":
             return None
+        if type(s) == list:
+            return '\n'.join([rec.decode('utf8') for rec in s])
+
         # For the first pass, assume an internal subfile, i.e. the
         # data is stored on as sub-items on the main item.
         # the value s will contain a closed format global to the actual record.
@@ -504,6 +536,24 @@ class FieldWP(Field):
     def pyto_external(self, s):
         return self.pyto_internal(s)
 
+    def retrieve(self, gl_rec, cache):
+        """
+            Retrieve the WP field the global. 
+            Ignoring cache for now
+        """
+        rv = []
+
+        storage = self.storage
+        gl_id, value = None, None
+        gbl, piece =  storage.split(';')
+        wp_file = gl_rec[gbl]
+
+        # Ignore the header for now.
+
+        for (recno, value) in wp_file.keys_with_decendants():
+            rv.append(wp_file[recno][0].value)
+
+        return rv
 
 class FieldComputed(Field):
     fmql_type = FT_COMPUTED
@@ -745,6 +795,33 @@ class FieldSubfile(Field):
         if self._dd is None:
             self._dd = DD(self.subfileid)
         return self._dd
+
+    def retrieve(self, gl_rec, cache, fields):
+        """
+            Retrieve a subfile - the entire subfile is returned.
+            Fields is the list of fields of interest.
+        """
+        rv = []
+
+        storage = self.storage
+        gl_id, value = None, None
+        gbl, piece =  storage.split(';')
+        sub_file = gl_rec[gbl]
+
+        # TODO: If fields is not passed, return all of the fields
+
+        # Ignore the header for now.
+
+        for (rowid, value) in sub_file.keys_with_decendants():
+            if not valid_rowid(rowid):
+                break
+            row = []
+            sub_file_row = sub_file[rowid]
+            for field in fields:
+                row.append(field.retrieve(sub_file_row, cache))
+            rv.append(row)
+
+        return rv
 
 
 # Simple lookup mechanism for parsing fields

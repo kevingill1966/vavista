@@ -332,7 +332,10 @@ class DBSFile(object):
             sequence of sequences.
         """
         record = DBSRow(self, self.dd, rowid, fieldids=self.fieldids, internal=self.internal)
-        record.retrieve() # raises exception on failure
+        if self.internal:
+            record.raw_retrieve()
+        else:
+            record.retrieve()
         if asdict:
             return dict(zip(self.fieldnames(), record.as_list()))
         else:

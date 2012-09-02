@@ -5,7 +5,7 @@
 """
 
 from vavista import M
-from vavista.fileman.dbsdd import FT_WP, FT_SUBFILE
+from vavista.fileman.dbsdd import FT_WP, FT_SUBFILE, FT_COMPUTED
 from shared import FilemanError, ROWID, STRING, FilemanErrorNumber
 
 class FilemanValidationError(FilemanError):
@@ -168,6 +168,58 @@ class DBSRow(object):
         M.Globals[self._row_tmpid].kill()
         if self._row_fdaid:
             M.Globals[self._row_fdaid].kill()
+
+    def raw_retrieve(self, cache=None):
+        """
+            The DBS retrieve function seems very slow so I am trying
+            to retrieve the data directly from the global.
+
+            I also want filter rows in a resultset without pulling the
+            full row. 
+
+            Finally, some data is not coming back via the DBS retrieve
+            methods, i.e. the kernal intro data.
+
+            This code should create an identical result to the retrieve() below.
+        """
+
+        # If any of the fields are a "computed", cannot use the raw retrieve.
+        force_cooked = False
+        for (fieldid, field) in self._fields.items():
+            if type(fieldid) != tuple and field.fmql_type in [FT_COMPUTED]:
+                force_cooked = True
+                break
+        if force_cooked:
+            return self.retrieve()
+
+        self._stored_data = result = {}
+
+        dd = self._dd
+
+        # verify the global exists.
+        gl = dd.m_open_form() + "%s)" % self._rowid
+        gl_rec = M.Globals.from_closed_form(gl)
+
+        if not gl_rec.exists():
+            raise FilemanError("File %s, record %s, does not exist", dd.filename, self._rowid)
+
+
+        for (fieldid, field) in self._fields.items():
+            if type(fieldid) == tuple:                 # Subfile list
+                parent, child = field
+                retrieved = parent.retrieve(gl_rec, cache, [child])
+                if retrieved:
+                    result[fieldid] = [child.pyfrom_internal(rec[0]) for rec in retrieved]
+            else:
+                if field.fmql_type in [FT_SUBFILE]:    # Embedded Schema
+                    #import pdb; pdb.set_trace()
+                    # TODO: This is disabled for now. It is triggered by the
+                    # dbsdd->new_indices, but that should also be cleaned up.
+                    pass
+                else:
+                    retrieved = field.retrieve(gl_rec, cache)  # Simple value
+                    if retrieved is not None:
+                        result[fieldid] = field.pyfrom_internal(retrieved)
 
     def retrieve(self):
         """
