@@ -348,6 +348,10 @@ class DBSFile(object):
             return None
 
         colname, comparator, value = filters[0]
+        if comparator.lower() == "in" and len(value) == 1:
+            comparator = "="
+            value = value[0]
+
         if comparator not in ["<", "<=", "=", ">=", ">"]:
             return None
 
@@ -474,7 +478,10 @@ class DBSFile(object):
         # TODO: pass in primary key - if the client passes it, I am ignoring it.
         values = dict([(self.dd.attrs[n.lower()], v) for (n, v) in kwargs.items() if n != '_rowid'])
         record = DBSRow(self, self.dd, None, internal=self.internal, fieldids=values.keys())
-        return record.insert(values)
+        try:
+            return record.insert(values)
+        except:
+            import pdb; pdb.post_mortem()
 
     def traverse_pointer(self, fieldname, value, fieldnames=None):
         """

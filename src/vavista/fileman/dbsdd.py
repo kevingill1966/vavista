@@ -444,7 +444,7 @@ class FieldSet(Field):
             Verify that the code is a valid code.
         """
         super(FieldSet, self).validate_insert(s, internal)  # mandatory check
-        if s not in [d[0] for d in self.details]:
+        if s and s not in [d[0] for d in self.details]:
             valid = []
             for k,v in self.details:
                 valid.append("%s=%s" % (k, v))
