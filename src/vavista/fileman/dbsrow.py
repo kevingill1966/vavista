@@ -206,7 +206,7 @@ class DBSRow(object):
         err = M.Globals["ERR"]
         if err.exists():
             print "error retrieving %s, file %s" % (iens, fileid)
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             raise FilemanErrorNumber(dierr=err)
 
         self._save_tmp_global()

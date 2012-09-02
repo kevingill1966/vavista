@@ -454,7 +454,6 @@ class DBSFile(object):
 
             I need to switch to a 'raw' global retriever to get this working.
         """
-        import pdb; pdb.set_trace()
         return True
 
     def update(self, _rowid, **kwargs):
@@ -481,7 +480,8 @@ class DBSFile(object):
         try:
             return record.insert(values)
         except:
-            import pdb; pdb.post_mortem()
+            #import pdb; pdb.post_mortem()
+            raise
 
     def traverse_pointer(self, fieldname, value, fieldnames=None):
         """
