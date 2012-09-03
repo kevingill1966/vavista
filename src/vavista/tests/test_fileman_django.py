@@ -22,96 +22,96 @@ class TestDjango(unittest.TestCase):
 
     # DIC record
     DIC = [
-        ('^DIC(9999903,0)', u'PYTEST1^9999903'),
-        ('^DIC(9999903,0,"AUDIT")', '@'),
-        ('^DIC(9999903,0,"DD")', '@'),
-        ('^DIC(9999903,0,"DEL")', '@'),
-        ('^DIC(9999903,0,"GL")', '^DIZ(9999903,'),
-        ('^DIC(9999903,0,"LAYGO")', '@'),
-        ('^DIC(9999903,0,"RD")', '@'),
-        ('^DIC(9999903,0,"WR")', '@'),
-        ('^DIC(9999903,"%A")', '10000000020^3120716'),
-        ('^DIC("B","PYTEST1",9999903)', ''),
+        ('^DIC(9999920,0)', u'PYTEST20^9999920'),
+        ('^DIC(9999920,0,"AUDIT")', '@'),
+        ('^DIC(9999920,0,"DD")', '@'),
+        ('^DIC(9999920,0,"DEL")', '@'),
+        ('^DIC(9999920,0,"GL")', '^DIZ(9999920,'),
+        ('^DIC(9999920,0,"LAYGO")', '@'),
+        ('^DIC(9999920,0,"RD")', '@'),
+        ('^DIC(9999920,0,"WR")', '@'),
+        ('^DIC(9999920,"%A")', '10000000020^3120716'),
+        ('^DIC("B","PYTEST20",9999920)', ''),
     ]
 
     # ^DIZ record
     DIZ = [
-        ('^DIZ(9999903,0)', 'PYTEST1^9999903^0^0')
+        ('^DIZ(9999920,0)', 'PYTEST20^9999920^0^0')
     ]
 
     # ^DD record
     # I added a traditional style index / cross reference (C)
     DD = [
-        ('^DD(9999903,0)', u'FIELD^^2^3'),
-        ('^DD(9999903,0,"DT")', '3120716'),
-        ('^DD(9999903,0,"IX","B",9999903,.01)', ''),
-    #   ('^DD(9999903,0,"IX","C",9999903,1)', ''),
-        ('^DD(9999903,0,"NM","PYTEST1")', ''),
-        ('^DD(9999903,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
-        ('^DD(9999903,.01,1,0)', '^.1'),
-        ('^DD(9999903,.01,1,1,0)', '9999903^B'),
-        ('^DD(9999903,.01,1,1,1)', 'S ^DIZ(9999903,"B",$E(X,1,30),DA)=""'),
-        ('^DD(9999903,.01,1,1,2)', 'K ^DIZ(9999903,"B",$E(X,1,30),DA)'),
-        ('^DD(9999903,.01,3)', 'NAME MUST BE 3-30 CHARACTERS, NOT NUMERIC OR STARTING WITH PUNCTUATION'),
-        ('^DD(9999903,1,0)', 'Textline One^F^^0;2^K:$L(X)>200!($L(X)<1) X'),
-        ('^DD(9999903,1,.1)', 'Text Line One'),
-        ('^DD(9999903,1,1,0)', '^.1'),
+        ('^DD(9999920,0)', u'FIELD^^2^3'),
+        ('^DD(9999920,0,"DT")', '3120716'),
+        ('^DD(9999920,0,"IX","B",9999920,.01)', ''),
+    #   ('^DD(9999920,0,"IX","C",9999920,1)', ''),
+        ('^DD(9999920,0,"NM","PYTEST20")', ''),
+        ('^DD(9999920,.01,0)', "NAME^RF^^0;1^K:$L(X)>30!(X?.N)!($L(X)<3)!'(X'?1P.E) X"),
+        ('^DD(9999920,.01,1,0)', '^.1'),
+        ('^DD(9999920,.01,1,1,0)', '9999920^B'),
+        ('^DD(9999920,.01,1,1,1)', 'S ^DIZ(9999920,"B",$E(X,1,30),DA)=""'),
+        ('^DD(9999920,.01,1,1,2)', 'K ^DIZ(9999920,"B",$E(X,1,30),DA)'),
+        ('^DD(9999920,.01,3)', 'NAME MUST BE 3-30 CHARACTERS, NOT NUMERIC OR STARTING WITH PUNCTUATION'),
+        ('^DD(9999920,1,0)', 'Textline One^F^^0;2^K:$L(X)>200!($L(X)<1) X'),
+        ('^DD(9999920,1,.1)', 'Text Line One'),
+        ('^DD(9999920,1,1,0)', '^.1'),
         # Traditional Index
-        ('^DD(9999903,1,1,1,0)', '9999903^C'),
-        ('^DD(9999903,1,1,1,1)', 'S ^DIZ(9999903,"C",$E(X,1,30),DA)=""'),
-        ('^DD(9999903,1,1,1,2)', 'K ^DIZ(9999903,"C",$E(X,1,30),DA)'),
-        ('^DD(9999903,1,1,1,"DT")', '3120716'),
-        ('^DD(9999903,1,3)', 'Answer must be 1-200 characters in length.'),
-        ('^DD(9999903,1,"DT")', '3120716'),
-        ('^DD(9999903,2,0)', 'textline2^RF^^1;1^K:$L(X)>200!($L(X)<1) X'),
-        ('^DD(9999903,2,3)', 'Answer must be 1-200 characters in length.'),
-        ('^DD(9999903,2,"DT")', '3120716'),
-        ('^DD(9999903,"B","NAME",.01)', ''),
-        ('^DD(9999903,"B","Text Line One",1)', '1'),
-        ('^DD(9999903,"B","Textline One",1)', ''),
-        ('^DD(9999903,"B","textline2",2)', ''),
-        ('^DD(9999903,"GL",0,1,.01)', ''),
-        ('^DD(9999903,"GL",0,2,1)', ''),
-        ('^DD(9999903,"GL",1,1,2)', ''),
-        ('^DD(9999903,"IX",.01)', ''),
+        ('^DD(9999920,1,1,1,0)', '9999920^C'),
+        ('^DD(9999920,1,1,1,1)', 'S ^DIZ(9999920,"C",$E(X,1,30),DA)=""'),
+        ('^DD(9999920,1,1,1,2)', 'K ^DIZ(9999920,"C",$E(X,1,30),DA)'),
+        ('^DD(9999920,1,1,1,"DT")', '3120716'),
+        ('^DD(9999920,1,3)', 'Answer must be 1-200 characters in length.'),
+        ('^DD(9999920,1,"DT")', '3120716'),
+        ('^DD(9999920,2,0)', 'textline2^RF^^1;1^K:$L(X)>200!($L(X)<1) X'),
+        ('^DD(9999920,2,3)', 'Answer must be 1-200 characters in length.'),
+        ('^DD(9999920,2,"DT")', '3120716'),
+        ('^DD(9999920,"B","NAME",.01)', ''),
+        ('^DD(9999920,"B","Text Line One",1)', '1'),
+        ('^DD(9999920,"B","Textline One",1)', ''),
+        ('^DD(9999920,"B","textline2",2)', ''),
+        ('^DD(9999920,"GL",0,1,.01)', ''),
+        ('^DD(9999920,"GL",0,2,1)', ''),
+        ('^DD(9999920,"GL",1,1,2)', ''),
+        ('^DD(9999920,"IX",.01)', ''),
         # Traditional Index
-        ('^DD(9999903,"IX",1)', ''),
-        ('^DD(9999903,"RQ",.01)', ''),
-        ('^DD(9999903,"RQ",2)', ''),
+        ('^DD(9999920,"IX",1)', ''),
+        ('^DD(9999920,"RQ",.01)', ''),
+        ('^DD(9999920,"RQ",2)', ''),
     ]
 
     # ^DD("IX") describes "New" style indexes
     # TODO: I must allocate the index id dynamically
     IX = [
-        ('^DD("IX",116,0)', '9999903^D^Regular index on textline2^R^^F^IR^I^9999903^^^^^LS'),
-        ('^DD("IX",116,1)', 'S ^DIZ(9999903,"D",$E(X,1,30),DA)=""'),
-        ('^DD("IX",116,2)', 'K ^DIZ(9999903,"D",$E(X,1,30),DA)'),
-        ('^DD("IX",116,2.5)', 'K ^DIZ(9999903,"D")'),
+        ('^DD("IX",116,0)', '9999920^D^Regular index on textline2^R^^F^IR^I^9999920^^^^^LS'),
+        ('^DD("IX",116,1)', 'S ^DIZ(9999920,"D",$E(X,1,30),DA)=""'),
+        ('^DD("IX",116,2)', 'K ^DIZ(9999920,"D",$E(X,1,30),DA)'),
+        ('^DD("IX",116,2.5)', 'K ^DIZ(9999920,"D")'),
         ('^DD("IX",116,11.1,0)', '^.114IA^1^1'),
-        ('^DD("IX",116,11.1,1,0)', '1^F^9999903^2^30^1^F'),
+        ('^DD("IX",116,11.1,1,0)', '1^F^9999920^2^30^1^F'),
         ('^DD("IX",116,11.1,1,3)', ''),
         ('^DD("IX",116,11.1,"AC",1,1)', ''),
         ('^DD("IX",116,11.1,"B",1,1)', ''),
         ('^DD("IX",116,11.1,"BB",1,1)', ''),
-        ('^DD("IX","B",9999903,116)', ''),
+        ('^DD("IX","B",9999920,116)', ''),
         ('^DD("IX","IX","D",116)', ''),
-        ('^DD("IX","AC",9999903,116)', ''),
-        ('^DD("IX","BB",9999903,"D",116)', ''),
-        ('^DD("IX","F",9999903,2,116,1)', ''),
+        ('^DD("IX","AC",9999920,116)', ''),
+        ('^DD("IX","BB",9999920,"D",116)', ''),
+        ('^DD("IX","F",9999920,2,116,1)', ''),
     ]
 
     def _cleanupFile(self):
         transaction.begin()
-        Globals["^DIC"]["9999903"].kill()
-        Globals["^DIC"]['B']["PYTEST1"].kill()
-        Globals["^DD"]["9999903"].kill()
-        Globals["^DIZ"]["9999903"].kill()
+        Globals["^DIC"]["9999920"].kill()
+        Globals["^DIC"]['B']["PYTEST20"].kill()
+        Globals["^DD"]["9999920"].kill()
+        Globals["^DIZ"]["9999920"].kill()
         Globals["^DD"]["IX"]["116"].kill()
-        Globals["^DD"]["IX"]["B"]["9999903"].kill()
-        Globals["^DD"]["IX"]["BB"]["9999903"].kill()
-        Globals["^DD"]["IX"]["AC"]["9999903"].kill()
+        Globals["^DD"]["IX"]["B"]["9999920"].kill()
+        Globals["^DD"]["IX"]["BB"]["9999920"].kill()
+        Globals["^DD"]["IX"]["AC"]["9999920"].kill()
         Globals["^DD"]["IX"]["IX"]["D"]["116"].kill()
-        Globals["^DD"]["IX"]["F"]["9999903"].kill()
+        Globals["^DD"]["IX"]["F"]["9999920"].kill()
         transaction.commit()
 
     def _createFile(self):
@@ -122,13 +122,13 @@ class TestDjango(unittest.TestCase):
         Globals.deserialise(self.DIZ)
         Globals.deserialise(self.IX)
 
-        pytest1 = self.dbs.get_file("PYTEST1")
+        pytest = self.dbs.get_file("PYTEST20")
         for i in range(10):
-            pytest1.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
+            pytest.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
         transaction.commit()
 
         # Are indices setup
-        dd = self.dbs.dd("PYTEST1")
+        dd = self.dbs.dd("PYTEST20")
     #   self.assertEqual(len(dd.indices), 2)
         self.assertEqual(len(dd.new_indices), 1)
 
@@ -148,10 +148,10 @@ class TestDjango(unittest.TestCase):
         """
             One rule - based on rowid
         """
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['_rowid', '=', '4']])
+        cursor = pytest.traverser(filters=[['_rowid', '=', '4']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
@@ -164,7 +164,7 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(cursor.from_rule, '>=')
         self.assertEqual(cursor.to_rule, '<=')
 
-        cursor = pytest1.traverser(filters=[['_rowid', '>=', '4']])
+        cursor = pytest.traverser(filters=[['_rowid', '>=', '4']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 7)
         self.assertEqual(result[0][0], '4')
@@ -178,7 +178,7 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(cursor.to_rowid, None)
         self.assertEqual(cursor.from_rule, '>=')
 
-        cursor = pytest1.traverser(filters=[['_rowid', 'in', ['4']]])
+        cursor = pytest.traverser(filters=[['_rowid', 'in', ['4']]])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
@@ -196,10 +196,10 @@ class TestDjango(unittest.TestCase):
         """
             One rule based on an indexed column
         """
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['name', '=', 'ROW3']])
+        cursor = pytest.traverser(filters=[['name', '=', 'ROW3']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
@@ -213,10 +213,10 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(cursor.from_rule, '>=')
         self.assertEqual(cursor.to_rule, '<=')
 
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['name', '>=', 'ROW3']])
+        cursor = pytest.traverser(filters=[['name', '>=', 'ROW3']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 7)
         self.assertEqual(result[0][0], '4')
@@ -229,10 +229,10 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(cursor.to_value, None)
         self.assertEqual(cursor.from_rule, '>=')
 
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['name', 'in', ['ROW3']]])
+        cursor = pytest.traverser(filters=[['name', 'in', ['ROW3']]])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
@@ -251,10 +251,10 @@ class TestDjango(unittest.TestCase):
         """
             Two rules based on an indexed column
         """
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']])
+        cursor = pytest.traverser(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][1][0], 'ROW3')
@@ -274,10 +274,10 @@ class TestDjango(unittest.TestCase):
         """
             Search based on a non-indexed column
         """
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
+        cursor = pytest.traverser(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
@@ -295,10 +295,10 @@ class TestDjango(unittest.TestCase):
             There is a secondary column constraint which 
             reduces the selection
         """
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
+        cursor = pytest.traverser(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
             ['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 3)
@@ -319,10 +319,10 @@ class TestDjango(unittest.TestCase):
             right now this gives a non-indexed traversal. In reality,
             it should create a third type of cursor, for multi-set retrieval.
         """
-        pytest1 = self.dbs.get_file("PYTEST1", fieldnames=[
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest1.traverser(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]])
+        cursor = pytest.traverser(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]])
         result = [(cursor.lastrowid, values) for values in cursor]
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
