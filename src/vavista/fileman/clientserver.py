@@ -355,6 +355,7 @@ class FilemandServer:
             rv.append([cursor.rowid, row])
             if limit and i >= limit-1:
                 break
+        logger.debug("returning %d rows", len(rv))
         return (dbsfile.fieldnames(), rv)
 
     def cmd_dbsfile_count(self, handle, request):
