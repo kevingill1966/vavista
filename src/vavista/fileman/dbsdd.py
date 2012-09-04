@@ -312,6 +312,13 @@ class Field(object):
             before pulling it from M
         """
         storage = self.storage
+
+        # Fieldid .001 is an odd case. This field provides use overrides
+        # on default rules for the rowid field. As such, no storage is specified
+        # for now, I am ignoring this field.
+        if storage == ' ':
+            return gl_rec.path[-1]
+
         gl_id, value = None, None
         gbl, piece =  storage.split(';')
         gl_piece = gl_rec[gbl]
