@@ -1,11 +1,10 @@
 
 """
-    For subfiles, the values are returned as fields in the main file.
-    if the subfile contains one field, it is a multiple value in the
-    main file.
+    Where the subfile contains one column only, it is a list.
+    Where the subfile contains multiple columns, it is an embedded schema.
 
-    TODO: I do not have the ability to traverse a pointer when it is
-    in a subfile. This is a common idiom.
+    I can force the result to be a list if I give P->C as the
+    column name, where P is the parent id and C is child id.
 """
 
 import unittest
@@ -15,9 +14,6 @@ from vavista.M import Globals
 
 class TestMulti(unittest.TestCase):
     """
-        Create a simple file containing two text lines,
-        one mandatory and one optional. Verify that the
-        read and write functionality works.
     """
     DIC = [
         ('^DIC(9999940,0)', u'PYMULT1^9999940'),
@@ -126,11 +122,24 @@ class TestMulti(unittest.TestCase):
             transaction.abort()
         self._cleanupFile()
 
-    def test_traversal(self):
+    def test_embedded_schema(self):
+        pymult = self.dbs.get_file("PYMULT1", fieldnames=['T1'])
+        cursor = pymult.traverser("B", " ")
+        record = cursor.next()
+
+        self.assertEquals(len(record[0]), 3)
+        self.assertEquals(record[0][0]['t1'], "1")
+        self.assertEquals(record[0][0]['t2'], "a")
+        self.assertEquals(record[0][1]['t1'], "2")
+        self.assertEquals(record[0][1]['t2'], "b")
+        self.assertEquals(record[0][2]['t1'], "3")
+        self.assertEquals(record[0][2]['t2'], "c")
+
+    def test_as_list(self):
         """
             Load the record. Then get a cursor for the sub-file.
         """
-        pymult = self.dbs.get_file("PYMULT1", fieldnames=['T1', "T1->T2"])
+        pymult = self.dbs.get_file("PYMULT1", fieldnames=['T1->T1', "T1->T2"])
 
         cursor = pymult.traverser("B", " ")
         parent = cursor.next()
@@ -146,7 +155,7 @@ class TestMulti(unittest.TestCase):
 
         # Verify update of a subfile element
         transaction.begin()
-        pymult.update(cursor.rowid, T1=["A","B","C"])
+        pymult.update(cursor.rowid, **{'T1->T1': ["A","B","C"]})
         transaction.commit()
 
         transaction.begin()
@@ -157,7 +166,7 @@ class TestMulti(unittest.TestCase):
         self.assertEquals(parent[0][2], "C")
 
         # Insert a subfile element
-        pymult.update(cursor.rowid, **{'T1': ["A","B","C","D"],
+        pymult.update(cursor.rowid, **{'T1->T1': ["A","B","C","D"],
                 'T1->T2': ["AA","BB","CC","DD"]})
         transaction.commit()
 
@@ -170,7 +179,7 @@ class TestMulti(unittest.TestCase):
 
         # delete an element
         # TODO: this functionality is not currently working.
-        pymult.update(cursor.rowid, **{'T1': ["A","B"],
+        pymult.update(cursor.rowid, **{'T1->T1': ["A","B"],
                 'T1->T2': ["AA","BB"]})
         transaction.commit()
 

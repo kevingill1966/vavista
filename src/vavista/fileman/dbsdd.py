@@ -852,6 +852,13 @@ class FieldSubfile(Field):
             self._dd = DD(self.subfileid)
         return self._dd
 
+    @property
+    def fields(self):
+        """
+            Return a list of the fields in the subfile.
+        """
+        return [f[1] for f in sorted(self.dd.fields.items())]
+
     def retrieve(self, gl_rec, cache, fields):
         """
             Retrieve a subfile - the entire subfile is returned.
@@ -863,8 +870,6 @@ class FieldSubfile(Field):
         gl_id, value = None, None
         gbl, piece =  storage.split(';')
         sub_file = gl_rec[gbl]
-
-        # TODO: If fields is not passed, return all of the fields
 
         # Ignore the header for now.
 
@@ -898,7 +903,7 @@ class Index(object):
 class AttrResolver:
     """
         A name "T1" maps to a file field
-        A name "T1->T2" maps to a subfile field
+        A name "T1->T2" maps to a subfile field - as a list
     """
     def __init__(self, dd):
         self._dd = dd
@@ -906,7 +911,8 @@ class AttrResolver:
         if k.find("->") == -1:
             res = self._dd.fieldnames[k.lower()]
             if self._dd.fields[res].fmql_type == FT_SUBFILE:
-                return (res, ".01")
+                #return (res, ".01")
+                return res
             else:
                 return res
         f_field, sf_field = k.split('->')

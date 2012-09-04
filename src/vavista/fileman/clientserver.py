@@ -269,8 +269,11 @@ class FilemandServer:
                     length = struct.pack("!L", len(response))
                     self.socket.sendall(length)
                     self.socket.sendall(response)
-        except:
+
+        except Exception, e:
             logger.exception("Exiting due to exception")
+            self.socket.shutdown(1)
+            self.socket.close()
 
     ## These are the actual handlers.
         
