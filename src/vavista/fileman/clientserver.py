@@ -159,11 +159,11 @@ class FilemandClient:
             data=dict(_rowid=_rowid))
 
     def dbsfile_traverser(self, handle, index, from_value, to_value, ascending,
-            from_rule, to_rule, raw, limit, offset, asdict, filters):
+            from_rule, to_rule, raw, limit, offset, asdict, filters, order_by):
         fieldnames, rows = self._mk_request("dbsfile_traverser", handle=handle,
             data = dict(index=index, from_value=from_value, to_value=to_value, 
                 ascending=ascending, from_rule=from_rule, to_rule=to_rule, 
-                raw=raw, limit=limit, offset=offset, filters=filters))
+                raw=raw, limit=limit, offset=offset, filters=filters, order_by=order_by))
         for rowid, row in rows:
             if asdict:
                 row = dict(zip(fieldnames, row))
@@ -350,7 +350,7 @@ class FilemandServer:
         cursor = dbsfile.traverser(index=request['index'], from_value=request['from_value'],
                 to_value=request['to_value'], ascending=request['ascending'],
                 from_rule=request['from_rule'], to_rule=request['to_rule'], raw=request['raw'],
-                offset=request['offset'], filters=request['filters'])
+                offset=request['offset'], filters=request['filters'], order_by=request['order_by'])
         for i, row in enumerate(cursor):
             rv.append([cursor.rowid, row])
             if limit and i >= limit-1:

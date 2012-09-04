@@ -52,6 +52,55 @@ Type Spec : all fields are optional.
     [x]         - Word-processing text that contains the vertical bar "|" will be displayed exactly as they
                     stored, (i.e., no window processing will take place).
 
+Indices (Traditional):
+
+    The index definitions are stored on the data-dictionary record for the field,
+    in a subfile, id = 1, example from the newperson file...
+
+        ('^DD(200,.01,1,0)', '^.1^^-1')
+        ('^DD(200,.01,1,1,0)', '200^B')
+        ('^DD(200,.01,1,1,1)', 'S ^VA(200,"B",$E(X,1,30),DA)=""')
+        ('^DD(200,.01,1,1,2)', 'K ^VA(200,"B",$E(X,1,30),DA)')
+
+        ('^DD(200,.01,1,2,0)', '200^AE^MUMPS')
+        ('^DD(200,.01,1,2,1)', 'S X1=$P($G(^VA(200,DA,1)),"^",8) I X1="" S $P(^VA(200,DA,1),"^",7,8)=DT_"^"_DUZ')
+        ('^DD(200,.01,1,2,2)', 'Q')
+        ('^DD(200,.01,1,2,3)', 'Stuffing Creator and date')
+        ('^DD(200,.01,1,2,"%D",0)', '^^1^1^2990617^^')
+        ('^DD(200,.01,1,2,"%D",1,0)', 'This X-ref stuffs the DATE ENTERED and CREATOR fields on a new entry.')
+        ('^DD(200,.01,1,2,"DT")', '2990617')
+
+        ('^DD(200,.01,1,5,0)', '200^BS5^MUMPS')
+        ('^DD(200,.01,1,5,1)', 'Q:$P($G(^VA(200,DA,1)),U,9)\']""  S ^VA(200,"BS5",$E(X,1)_$E($P(^(1),U,9),6,9),DA)=""')
+        ('^DD(200,.01,1,5,2)', 'Q:$P($G(^VA(200,DA,1)),U,9)\']""  K ^VA(200,"BS5",$E(X,1)_$E($P(^(1),U,9),6,9),DA)')
+        ('^DD(200,.01,1,5,3)', 'Special BS5 lookup X-ref')
+        ('^DD(200,.01,1,5,"%D",0)', '^^3^3^2990617^^')
+        ('^DD(200,.01,1,5,"%D",1,0)', "This X-ref builds the 'BS5' X-ref on name changes.")
+        ('^DD(200,.01,1,5,"%D",2,0)', 'The BS5 is the first letter of the last name concatinated with the last')
+        ('^DD(200,.01,1,5,"%D",3,0)', 'four digits of the SSN.')
+
+    The logic of the indices appears to be imperative. These are triggers to be executed
+    when the field is changed, i.e. Cross references, so not all entries in this subfile
+    are indices.
+
+    There is a second listing of cross references in the DD, 
+
+        ('^DD(200,0,"IX","AC",200,.01)', '')
+        ('^DD(200,0,"IX","AC",200,14.9)', '')
+        ('^DD(200,0,"IX","AE",200,.01)', '')
+        ('^DD(200,0,"IX","AG",200,.01)', '')
+        ('^DD(200,0,"IX","AH",200,.01)', '')
+        ('^DD(200,0,"IX","ASX",200,.01)', '')
+        ('^DD(200,0,"IX","B",200,.01)', '')     ** VALID **
+        ('^DD(200,0,"IX","BS5",200,.01)', '')
+        ('^DD(200,0,"IX","MA",200,.01)', '')
+        ...
+
+    There is no-data in these indexes where they do not match with cross-references on 
+    the field.
+
+    AND OF COURSE THERE IS THE NEW STYLE INDEXES !!
+
 """
 
 import datetime
@@ -836,6 +885,8 @@ class Index(object):
         self.columns = columns
     def __str__(self):
         return "Index(%s) on table %s, columns %s" % (self.name, self.table, self.columns)
+    def __unicode__(self):
+        return str(self)
 
 class AttrResolver:
     """
@@ -940,16 +991,17 @@ class _DD(object):
     def indices(self):
         """
             Return a list of the indices
-            # Indices are recorded as
 
-            GTM>zwrite ^DD(200,0,"IX",*)
-            ^DD(200,0,"IX","A",200,2)=""
-            ^DD(200,0,"IX","A16",200,8980.16)=""
+            To be valid, the index must be both in the IX
+
             ^DD(200,0,"IX","AASWB",200,654)=""
 
         """
         if self._indices is None:
-            self._indices = i = []
+            i = []
+
+            # TODO: this is not right for multi-column keys
+            # TODO: new style indexes
 
             global_name = '^DD(%s,0,"IX","0")' % self.fileid
             prefix = '^DD(%s,0,"IX",' % self.fileid
@@ -964,6 +1016,43 @@ class _DD(object):
                 idx_columns = parts[2:]
                 index = Index(idx_name, idx_table, idx_columns)
                 i.append(index)
+
+            # A second list, gives indices for a field
+            columns = {}
+            for idx in i:
+                for c in idx.columns:
+                    columns[c] = 1
+
+            # Now trawl the listed columns in the data dictionary, and load their
+            # cross references.
+            cr_names = {}
+            for c in columns.keys():
+                idx_root = M.Globals["^DD"][self.fileid][c][1]
+                if not idx_root[0].exists():
+                    continue
+                for cr_id, val in idx_root.keys_with_decendants():
+                    if float(cr_id) > 0:
+                        cr_header = idx_root[cr_id][0].value
+                        parts = cr_header.split("^")
+                        if len(parts) == 2 and parts[1]:   # if more than 2 parts, assume MUMPs trigger
+                            f = cr_names.get(parts[1], list())
+                            f.append(c)
+                            cr_names[parts[1]] = f
+
+            # Now, just delete items from the index list if they are not in cr_names
+            self._indices = []
+            for index in i:
+                cr = cr_names.get(index.name)
+                if cr:
+                    # verify columns - lots of errors in real systems
+                    if len(cr) == len(index.columns):
+                        invalid = False
+                        for c in cr:
+                            if c not in index.columns:
+                                invalid = True
+                                continue
+                        if not invalid:
+                            self._indices.append(index)
 
         return self._indices
 

@@ -14,7 +14,7 @@ from dbsrow import DBSRow
 
 class IndexIterator:
     def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True,
-        from_rule=">=", to_rule="<", raw=False, getter=None, description=None, filters=None):
+        from_rule=">=", to_rule="<", raw=False, getter=None, description=None, filters=None, limit=None, offset=None):
         """
             An iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -38,6 +38,7 @@ class IndexIterator:
         self.getter = getter
         self.description = description
         self.filters = filters
+        self.limit, self.offset = limit, offset
 
         if self.from_value != None and self.to_value != None:
             if self.ascending:
@@ -46,10 +47,21 @@ class IndexIterator:
                 assert(self.to_value <= self.from_value)
         
         if self.from_value is None:
-            self.lastkey = " "
+            if ascending:
+                self.lastkey = " "
+            else:
+                self.lastkey = "ZZZZZZZZZZZZZZ"
         else:
             self.lastkey = self.from_value
         self.lastrowid = ""
+
+        if self.offset:
+            self.skip_rows = int(self.offset)
+        else:
+            self.skip_rows = 0
+
+        if self.limit:
+            self.limit = int(self.limit)
 
     def __iter__(self):
         return self
@@ -75,12 +87,6 @@ class IndexIterator:
 
         # There is an inefficiency here it takes three searches to find the next record.
         while 1:
-            try:
-                float(lastkey)
-                lastkey_isnum = True
-            except:
-                lastkey_isnum = False
-
             if lastrowid is None:
                 # locate the next matching index value
                 lastkey, = M.mexec("""set s0=$order(%ss0),%s)""" % (self.gl, asc), M.INOUT(str(lastkey)))
@@ -131,6 +137,10 @@ class IndexIterator:
                 # Are filters to be applied?
                 if not self.filters(lastrowid):
                     continue
+
+            if self.skip_rows > 0:
+                self.skip_rows -= 1
+                continue
 
             self.lastrowid = lastrowid
             if self.raw:
@@ -344,12 +354,38 @@ class DBSFile(object):
         else:
             return record.as_list()
 
-    def _index_select(self, filters, orderby):
+    def _index_select(self, filters, order_by):
         """
             Given the filters, can we use an index
 
-            returns: filters, index, from_value, to_value, from_rule, to_rule
+            returns: filters, index, from_value, to_value, from_rule, to_rule, ascending
+
         """
+        ascending = True
+
+        # Odd case - if there is no filters, but there is an order by,
+        #            find an index for the order_by
+        #            format of order_by: "order_by": [["_rowid", "ASC"]
+
+        if not filters and order_by:
+            assert(len(order_by) == 1)  # TODO: support more
+            if order_by[0][0] == '_rowid':
+                if order_by[0][1] == 'ASC':
+                    return None # default
+                else:
+                    return (filters, None, None, None, None, None, False)
+
+            ascending = (order_by[0][1] == 'ASC')
+            order_col = order_by[0][0]
+            order_fieldid = self.dd.attrs[order_col]
+            for index in self.dd.indices:
+                if index.table != self.dd.fileid:   # indexes can be on embedded models
+                    continue
+                if len(index.columns) == 1 and index.columns[0] == order_fieldid:
+                    return (filters, index.name, None, None, None, None, ascending)
+
+        if not filters:
+            return None
 
         # 1. Identify the sargable columns
         sargable = {}
@@ -384,6 +420,8 @@ class DBSFile(object):
             # There is a mis-match here colnames versus fieldids
             sargable_fieldids = dict([(self.dd.attrs[colname], colname) for colname in sargable_fields])
             for index in self.dd.indices:
+                if index.table != self.dd.fileid:   # indexes can be on embedded models
+                    continue
                 if len(index.columns) == 1 and index.columns[0] in sargable_fieldids.keys():
                     colname = sargable_fieldids[index.columns[0]]
                     sargable[colname].append(index.name)
@@ -448,10 +486,10 @@ class DBSFile(object):
                     if to_rule in ["<="] and comparator in ["<"]:
                         to_rule = comparator
 
-        return (filters, index, from_value, to_value, from_rule, to_rule)
+        return (filters, index, from_value, to_value, from_rule, to_rule, ascending)
 
     def traverser(self, index=None, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None, raw=False,
-            filters=None, limit=None, offset=None, orderby=None):
+            filters=None, limit=None, offset=None, order_by=None):
         """
             Return an iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -460,12 +498,12 @@ class DBSFile(object):
             In the case where the from value = to value, we want an 
             exact match only.
         """
-        if filters and index is None and from_value == None and to_value == None:
-            # Index is not specified, but we have filters - look at the filters
+        if index is None and from_value == None and to_value == None:
+            # Index is not specified, but we may have filters - look at the filters
             # to see if we can select an index using them.
-            rv = self._index_select(filters, orderby)
+            rv = self._index_select(filters, order_by)
             if rv:
-                filters, index, from_value, to_value, from_rule, to_rule = rv
+                filters, index, from_value, to_value, from_rule, to_rule, ascending = rv
 
         if ascending:
             if from_rule is None:
@@ -500,10 +538,15 @@ class DBSFile(object):
         else:
             filter_function = None
 
+        # TODO: order_by - will work if I can find an index. However, I cannot find
+        #                  an index, I have to extract the sorting columns and do a
+        #                  filesort.
+
+
         if index:
             return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
                 from_rule, to_rule, raw, getter=self.get, description=self.description,
-                filters=filter_function)
+                filters=filter_function, limit=limit, offset=offset)
         else:
             return RowIterator(gl_prefix, from_value, to_value, ascending,
                 from_rule, to_rule, raw, getter=self.get, description=self.description,
