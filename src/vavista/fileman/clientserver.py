@@ -272,6 +272,7 @@ class FilemandServer:
 
         except Exception, e:
             logger.exception("Exiting due to exception")
+            import pdb; pdb.post_mortem()
             self.socket.shutdown(1)
             self.socket.close()
 

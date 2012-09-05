@@ -259,7 +259,10 @@ class RowIterator:
         
         # TODO: full table descending - highest numeric value
         if self.from_rowid is None:
-            self.lastrowid = "0"
+            if ascending:
+                self.lastrowid = "0"
+            else:
+                self.lastrowid = None
         else:
             self.lastrowid = ('%f' % self.from_rowid).rstrip('0').rstrip('.').lstrip('0') 
             if self.from_rowid > 0 and self.lastrowid[0] == "0":
@@ -304,9 +307,13 @@ class RowIterator:
             found = False
             if self.first_pass:
                 self.first_pass = False
-                if lastrowid and float(lastrowid) > 0:
+                if lastrowid is None and asc == -1:
+                    lastrowid, = M.mexec("""set s0=$order(%ss0),-1)""" % self.gl, M.INOUT('%'))
+                    if valid_rowid(lastrowid):
+                        found = True
+                elif lastrowid and float(lastrowid) > 0:
                     row_exists, = M.mexec("""set s0=$data(%ss0))""" % (self.gl), M.INOUT(lastrowid))
-                    if int(row_exists):
+                    if valid_rowid(row_exists):
                         found = True
 
             if not found:
@@ -326,6 +333,8 @@ class RowIterator:
                     if f_lastrowid > self.to_rowid and self.to_rule == "<=":
                         break
             else: # descending:
+                if f_lastrowid == 0:
+                    break # header record 
                 if self.from_rowid is not None:
                     if f_lastrowid == self.from_rowid and self.from_rule == "<":
                         continue

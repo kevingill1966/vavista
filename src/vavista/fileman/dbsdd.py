@@ -512,6 +512,9 @@ class FieldText(Field):
 
     @classmethod
     def c_isa(cls, flags):
+        if len(flags) == 0:
+            # name field can be defined without a type.
+            return True
         return flags and flags[0] == 'F'
 
 
@@ -859,7 +862,7 @@ class FieldSubfile(Field):
         """
         return [f[1] for f in sorted(self.dd.fields.items())]
 
-    def retrieve(self, gl_rec, cache, fields):
+    def retrieve(self, gl_rec, cache, fields=None, asdict=False):
         """
             Retrieve a subfile - the entire subfile is returned.
             Fields is the list of fields of interest.
@@ -873,6 +876,13 @@ class FieldSubfile(Field):
 
         # Ignore the header for now.
 
+        # Gets hit with nested subfiles.
+        if fields == None:
+            asdict = True
+            fields = self.fields
+
+        fieldnames = [f.label for f in fields]
+
         for (rowid, value) in sub_file.keys_with_decendants():
             if not valid_rowid(rowid):
                 break
@@ -880,6 +890,9 @@ class FieldSubfile(Field):
             sub_file_row = sub_file[rowid]
             for field in fields:
                 row.append(field.retrieve(sub_file_row, cache))
+            if asdict:
+                row = dict(zip(fieldnames, row))
+                row['_rowid'] = rowid
             rv.append(row)
 
         return rv

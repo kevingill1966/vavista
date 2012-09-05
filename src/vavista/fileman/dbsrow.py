@@ -210,13 +210,17 @@ class DBSRow(object):
                 if retrieved:
                     result[fieldid] = [child.pyfrom_internal(rec[0]) for rec in retrieved]
             else:
-                if field.fmql_type in [FT_SUBFILE]:    # Embedded Schema
+                if field.fmql_type in [FT_SUBFILE]:    # Embedded Schema - return list of dicts
                     fields = field.fields
-                    retrieved = field.retrieve(gl_rec, cache, fields)
+                    retrieved = field.retrieve(gl_rec, cache, fields, asdict=True)
                     if retrieved is not None:
                         result[fieldid] = fresult = []
                         for row in retrieved:
-                            fresult.append(dict([(fields[x].label, fields[x].pyfrom_internal(row[x])) for x in range(len(fields))]))
+                            row_cooked = dict([
+                                (fieldx.label, fieldx.pyfrom_internal(row[fieldx.label]))
+                                for fieldx in fields])
+                            row_cooked['_rowid'] = row['_rowid']
+                            fresult.append(row_cooked)
                 else:
                     retrieved = field.retrieve(gl_rec, cache)  # Simple value
                     if retrieved is not None:
