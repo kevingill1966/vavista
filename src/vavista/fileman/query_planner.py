@@ -106,8 +106,21 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
         rec = file_root[rowid]
         emit = True
         for colname, comparator, value in filters:
-            field = dbsfile._dd_field_byname(colname)
-            db_value = field.retrieve(rec, gl_cache)
+            ## Need mumps comparisons here - numerics versus non-numerics
+            if colname == '_rowid':
+                db_value = rowid
+            else:
+                field = dbsfile._dd_field_byname(colname)
+                db_value = field.retrieve(rec, gl_cache)
+
+            try:
+                float(db_value)
+                float(value)
+
+                db_value = float(db_value)
+                value = float(value)
+            except:
+                pass
 
             if comparator == '='  and not (db_value == value):
                 emit = False
@@ -134,10 +147,19 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
             yield rowid
 
 
-def file_order_traversal(gl, from_rowid=None, to_rowid=None, ascending=True, from_rule=None, to_rule=None, explain=False):
+def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
     """
         Originate records by traversing the file in file order (i.e. no index)
     """
+    if ranges:
+        r = ranges[0]
+        from_rowid = r['from_value']
+        to_rowid = r['to_value']
+        from_rule = r['from_rule']
+        to_rule = r['to_rule']
+    else:
+        from_rowid, to_rowid, from_rule, to_rule = None, None, None, None
+
     if explain:
         yield "file_order_traversal, ascending=%s, gl=%s, X %s %s AND X %s %s" % (ascending,
                 gl, from_rule, from_rowid, to_rule, to_rowid)
@@ -221,8 +243,7 @@ def file_order_traversal(gl, from_rowid=None, to_rowid=None, ascending=True, fro
         yield lastrowid
 
 
-def index_order_traversal(gl_prefix, index, from_value=None, to_value=None, ascending=True,
-        from_rule=">=", to_rule="<", explain=False):
+def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain=False):
     """
         A generator which will traverse an index.
         The iterator should yield rowids.
@@ -236,6 +257,15 @@ def index_order_traversal(gl_prefix, index, from_value=None, to_value=None, asce
 
     """
     gl = gl_prefix + '"%s",' % index
+
+    if ranges:
+        r = ranges[0]
+        from_value = r['from_value']
+        to_value = r['to_value']
+        from_rule = r['from_rule']
+        to_rule = r['to_rule']
+    else:
+        from_value, to_value, from_rule, to_rule = None, None, None, None
 
     if explain:
         yield "index_order_traversal, ascending=%s, gl=%s, index=%s, X %s '%s' AND X %s '%s'" % (ascending,
@@ -335,6 +365,92 @@ def _index_for_column(dd, col_fieldid):
             return index.name
     return None
 
+def _filters_to_sargable(filters):
+    """
+        Analyse the filters - see what is sargable
+        return a dictionary with the column names and
+        the sargable rules referring to it.
+    """
+    sargable = {}
+    for colname, comparator, value in filters:
+        if (comparator in ["<", "<=", "=", ">=", ">"]) or (comparator in ["in"] and len(value) == 1):
+            if colname not in sargable.keys():
+                sargable[colname] = []
+            sargable[colname].append((comparator, value))
+    return sargable
+
+def _possible_indices(sargable, dd, parent_dd):
+    """
+        Given the sargable columns, which ones are actually indexed.
+        Return column, index and rules
+    """
+    indices = {}
+
+    # There is a mis-match here colnames versus fieldids
+    sargable_fieldids = dict([(dd.attrs[colname], colname) for colname in sargable.keys()])
+    if parent_dd:
+        # This is a sub-file - indices are on the parent
+        index_list = parent_dd.indices
+    else:
+        index_list = dd.indices
+    for index in index_list:
+        if index.table != dd.fileid:   # indexes can be on embedded models
+            continue
+        if len(index.columns) == 1 and index.columns[0] in sargable_fieldids.keys():
+            colname = sargable_fieldids[index.columns[0]]
+            if colname not in indices:
+                indices[colname] = []
+            indices[colname].append(index.name)
+    return indices
+
+def _ranges_from_index_filters(index_filters, ascending):
+    """
+        Given a set of index filters, return a set of ranges.
+
+        from, from_rule, to, to_rule
+
+        There can be more than one range where the "in" rule is provided
+    """
+    ### TODO: First attempt - only one set
+
+    lb_value, lb_rule, ub_value, ub_rule = None, None, None, None
+
+    for comparator, value in index_filters:
+        if comparator in [">", ">=", "=", 'in']:
+            # TODO: comparason based on mumps rules, not python rules
+            if lb_value is None or lb_value < value:
+                if comparator == 'in':
+                    assert(len(value) == 1)
+                    lb_value = value[0]
+                else:
+                    lb_value = value
+                if comparator in ["=", 'in']:
+                    lb_rule = ">="
+                else:
+                    lb_rule = comparator
+            elif lb_value == value:
+                if lb_rule in [">="] and comparator in [">"]:
+                    lb_rule = comparator
+        if comparator in ["<", "<=", "=", 'in']:
+            # TODO: comparason based on mumps rules, not python rules
+            if ub_value is None or ub_value > value:
+                if comparator == 'in':
+                    assert(len(value) == 1)
+                    ub_value = value[0]
+                else:
+                    ub_value = value
+                if comparator in ["=", 'in']:
+                    ub_rule = "<="
+                else:
+                    ub_rule = comparator
+            elif ub_value == value:
+                if ub_rule in ["<="] and comparator in ["<"]:
+                    ub_rule = comparator
+    if ascending:
+        return [{'from_value':lb_value, 'to_value': ub_value, 'from_rule': lb_rule, 'to_rule': ub_rule}]
+    else:
+        return [{'from_value':ub_value, 'to_value': lb_value, 'from_rule': ub_rule, 'to_rule': lb_rule}]
+
 def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cache=None, explain=False):
     """
         Given the filters and the order_by clause
@@ -351,6 +467,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
     pipeline = []
 
     dd = dbsfile.dd
+    parent_dd = dbsfile.dd.parent_dd
 
 
     ### First we need a traverser. There are a number of options,
@@ -400,56 +517,27 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
     else:
 
         # 1. Identify the sargable columns
-        sargable = {}
-        for colname, comparator, value in filters:
-            if comparator in ["<", "<=", "=", ">=", ">"]:
-                # TODO in, like with leading const.
-                # TODO - ensure rhs is a constant
-                if colname not in sargable.keys():
-                    if colname == '_rowid':
-                        sargable[colname] = None
-                    else:
-                        sargable[colname] = []
-            elif comparator in ["in"] and len(value) == 1:
-                if colname not in sargable.keys():
-                    if colname == '_rowid':
-                        sargable[colname] = None
-                    else:
-                        sargable[colname] = []
-
+        sargable = _filters_to_sargable(filters)
         if not sargable:
             pipeline.append(file_order_traversal(gl_prefix, explain=explain))
         else:
-            sargable_fields = sargable.keys()
 
             # 2. find columns with indexes
             #    choose the preferred index (sargable + orderable, fileorder, first index)
-            if len(sargable_fields) == 1 and sargable_fields[0] == '_rowid':
+            if len(sargable.keys()) == 1 and sargable.keys()[0] == '_rowid':
                 # direct record retrieve - indexes not necessary
                 colname = "_rowid"
                 index = None
 
             else:
-                # There is a mis-match here colnames versus fieldids
-                sargable_fieldids = dict([(dd.attrs[colname], colname) for colname in sargable_fields])
-                for index in dd.indices:
-                    if index.table != dd.fileid:   # indexes can be on embedded models
-                        continue
-                    if len(index.columns) == 1 and index.columns[0] in sargable_fieldids.keys():
-                        colname = sargable_fieldids[index.columns[0]]
-                        sargable[colname].append(index.name)
-
-                unindexed = [k for k,v in sargable.items() if len(v) == 0 and k != '_rowid']
-                for k in unindexed:
-                    del sargable[k]
-
-                if len(sargable) == 0:
+                indices =  _possible_indices(sargable, dd, parent_dd)
+                if len(indices) == 0:
                     colname = None
                     index = None
 
-                elif len(sargable) == 1:
-                    colname = sargable.keys()[0]
-                    index = sargable[colname][0]
+                elif len(indices) == 1:
+                    colname = indices.keys()[0]
+                    index = indices[colname][0]  # There can be more than one - why?
 
                 else:
                     # More than one option. How to choose the best?
@@ -457,76 +545,36 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                     # or '=' has precendence over range?
 
                     # Choose first for now
-                    colname = sargable.keys()[0]
-                    index = sargable[colname][0]
+                    colname = indices.keys()[0]
+                    index = indices[colname][0]
 
             # At this point we have choosen an index. Have to choose the 
             # traversal rules, and remove the index from the filters
-            index_filters = [rule for rule in filters if rule[0] == colname]
-            filters = [rule for rule in filters if rule[0] != colname]
+            if colname:
+                index_filters = sargable[colname]
+            else:
+                index_filters = []
 
-            # 3.  Make the traversal rules (upper/lower bounds)
-            lb_value, lb_rule, ub_value, ub_rule = None, None, None, None
+            # Ignoring sub-order-by rules
+            if index == None and order_by and order_by[0][0] == '_rowid':
+                ascending = (order_by[0][1] == 'ASC')
+            elif order_by and order_by[0][0].lower() == colname.lower():
+                ascending = (order_by[0][1] == 'ASC')
+            else:
+                ascending = True
 
-            for colname, comparator, value in index_filters:
-                if comparator in [">", ">=", "=", 'in']:
-                    # TODO: comparason based on mumps rules, not python rules
-                    if lb_value is None or lb_value < value:
-                        if comparator == 'in':
-                            assert(len(value) == 1)
-                            lb_value = value[0]
-                        else:
-                            lb_value = value
-                        if comparator in ["=", 'in']:
-                            lb_rule = ">="
-                        else:
-                            lb_rule = comparator
-                    elif lb_value == value:
-                        if lb_rule in [">="] and comparator in [">"]:
-                            lb_rule = comparator
-                if comparator in ["<", "<=", "=", 'in']:
-                    # TODO: comparason based on mumps rules, not python rules
-                    if ub_value is None or ub_value > value:
-                        if comparator == 'in':
-                            assert(len(value) == 1)
-                            ub_value = value[0]
-                        else:
-                            ub_value = value
-                        if comparator in ["=", 'in']:
-                            ub_rule = "<="
-                        else:
-                            ub_rule = comparator
-                    elif ub_value == value:
-                        if ub_rule in ["<="] and comparator in ["<"]:
-                            ub_rule = comparator
+            ranges = _ranges_from_index_filters(index_filters, ascending)
+            r = ranges[0]
+            from_value = r['from_value']
+            to_value = r['to_value']
+            from_rule = r['from_rule']
+            to_rule = r['to_rule']
 
             if index == None:
                 # File order traversal
-
-                if order_by and order_by[0][0] == '_rowid':
-                    ascending = (order_by[0][1] == 'ASC')
-                    order_by = None
-                else:
-                    ascending = True
-                if ascending:
-                    pipeline.append(file_order_traversal(gl_prefix, from_rowid=lb_value, to_rowid=ub_value,
-                        from_rule=lb_rule, to_rule=ub_rule, ascending=True, explain=explain))
-                else:
-                    pipeline.append(file_order_traversal(gl_prefix, from_rowid=ub_value, to_rowid=lb_value,
-                        from_rule=ub_rule, to_rule=lb_rule, ascending=False, explain=explain))
+                pipeline.append(file_order_traversal(gl_prefix, ranges=ranges, ascending=ascending, explain=explain))
             else:
-                if order_by and order_by[0][0].lower() == colname.lower():
-                    ascending = (order_by[0][1] == 'ASC')
-                    order_by = None
-                else:
-                    ascending = True
-
-                if ascending:
-                    pipeline.append(index_order_traversal(gl_prefix, index=index, from_value=lb_value, to_value=ub_value,
-                        from_rule=lb_rule, to_rule=ub_rule, ascending=True, explain=explain))
-                else:
-                    pipeline.append(index_order_traversal(gl_prefix, index=index, from_value=ub_value, to_value=lb_value,
-                        from_rule=ub_rule, to_rule=lb_rule, ascending=False, explain=explain))
+                pipeline.append(index_order_traversal(gl_prefix, index=index, ranges=ranges, ascending=ascending, explain=explain))
 
         if order_by:
             pipeline.append(sorter(pipeline[0], order_by, dd, gl_cache, explain=explain))

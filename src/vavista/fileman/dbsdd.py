@@ -973,6 +973,14 @@ class _DD(object):
                 #parent_gl = str(M.Globals["^DIC"][self.fileid][0]["GL"].value)
                 self._cache_gl = parent_dd._gl + str(parent_fieldid) + ","
 
+            elif M.Globals["^DD"][fileid][0]["UP"].exists():
+                # Subfile being composed directly. - I don't know the field
+                # id in the parent.
+                parent_fileid = M.Globals["^DD"][fileid][0]["UP"].value
+                self.parent_dd = DD(parent_fileid)
+
+                # parent fieldid ?
+
             elif M.Globals["^DIC"][fileid]["0"].exists():
                 dic_header = M.Globals["^DIC"][fileid]["0"].value
                 filename = dic_header.split("^")[0]

@@ -157,7 +157,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['_rowid', '=', '4']], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("file_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 4 AND X <= 4"), -1)
@@ -172,7 +172,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['_rowid', '>=', '4']], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("file_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 4 AND X None None"), -1)
@@ -185,7 +185,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['_rowid', 'in', ['4']]], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("file_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 4 AND X <= 4"), -1)
@@ -206,7 +206,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['name', '=', 'ROW4']], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X <= 'ROW4'"), -1)
@@ -220,7 +220,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['name', '>=', 'ROW4']], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X None 'None'"), -1)
@@ -233,7 +233,7 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[0][1][0], 'ROW4')
 
         plan = list(pytest.query(filters=[['name', 'in', ['ROW4']]], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X <= 'ROW4'"), -1)
@@ -256,7 +256,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 'ROW3' AND X <= 'ROW6'"), -1)
@@ -273,7 +273,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], order_by=[["name", "desc"]], explain=True))
-        self.assertEqual(len(plan), 1)
+        self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=False"), -1)
         self.assertNotEquals(plan[0].find("X <= 'ROW6' AND X >= 'ROW3'"), -1)
@@ -331,7 +331,7 @@ class TestDjango(unittest.TestCase):
         self.assertNotEquals(plan[0].find("index=B"), -1)
 
         self.assertEquals(plan[1].find("apply_filters filters"), 0)
-        self.assertNotEquals(plan[1].find("[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']]"), -1)
+        self.assertNotEquals(plan[1].find("['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']"), -1)
 
     def test_index_in(self):
         """
@@ -350,12 +350,21 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]], explain=True))
-        print plan
         self.assertEqual(plan[0].find("file_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X None None AND X None None"), -1)
         self.assertEquals(plan[1].find("apply_filters"), 0)
         self.assertNotEquals(plan[1].find("filters = [['name', 'in', ['ROW3', 'ROW4', 'ROW5']]]"), -1)
+
+    def test_subfile(self):
+        """
+            This is pulling county information from a state.
+            TODO: build a test file.
+        """
+        #pytest = self.dbs.get_file("5.01", fieldnames=["county", "abbreviation", "va_county_code", "catchment_code", "inactive_date"])
+
+        #plan = list(pytest.query(order_by = [["_parent_rowid", "ASC"], ["_rowid", "ASC"]],
+        #        filters = [["_parent_rowid", "=", "6"]], explain=True))
 
 test_cases = (TestDjango, )
 
