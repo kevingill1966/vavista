@@ -79,7 +79,7 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
         else:
             ascending = False
 
-    for rowid, rec_gl_closed_form in stream:
+    for rowid, rec_gl_closed_form, rowid_path in stream:
         rec = M.Globals.from_closed_form(rec_gl_closed_form)
         key = []
         for field in fields:
@@ -87,13 +87,13 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
                 key.append(rowid)
             else:
                 key.append(field.retrieve(rec, gl_cache))
-        values.append((key, (rowid, rec_gl_closed_form)))
+        values.append((key, (rowid, rec_gl_closed_form, rowid_path)))
 
     values.sort()
     if not ascending:
         values.reverse()
-    for key, (rowid, rec_gl_closed_form) in values:
-        yield (rowid, rec_gl_closed_form)
+    for key, (rowid, rec_gl_closed_form, rowid_path) in values:
+        yield (rowid, rec_gl_closed_form, rowid_path)
 
 def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
     """
@@ -108,7 +108,7 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
         yield "apply_filters filters = %s" % filters
         return
 
-    for rowid, rec_gl_closed_form in stream:
+    for rowid, rec_gl_closed_form, rowid_path in stream:
         rec = M.Globals.from_closed_form(rec_gl_closed_form)
         emit = True
         for colname, comparator, value in filters:
@@ -150,7 +150,7 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
             #       logic will depend of field types.
 
         if emit:
-            yield rowid, rec_gl_closed_form 
+            yield rowid, rec_gl_closed_form, rowid_path
 
 def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
     """
@@ -245,7 +245,7 @@ def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
                 if f_lastrowid < to_rowid and to_rule == ">=":
                     break
 
-        yield (lastrowid, "%s%s)" % (gl, lastrowid))
+        yield (lastrowid, "%s%s)" % (gl, lastrowid), [lastrowid])
 
 def subfile_traversal(stream, gl, dd, ascending=True, explain=False):
     """
@@ -373,7 +373,7 @@ def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain
             lastrowid = None
             continue
 
-        yield (lastrowid, "%s%s)" % (gl_prefix, lastrowid))
+        yield (lastrowid, "%s%s)" % (gl_prefix, lastrowid), [lastrowid])
 
 #------------------------------------------------------------------------------------------------
 

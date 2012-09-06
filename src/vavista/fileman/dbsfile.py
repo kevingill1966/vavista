@@ -593,7 +593,7 @@ class DBSFile(object):
             for message in plan:
                 yield message
         else:
-            for rowid, gl_root in plan:
+            for rowid, gl_root, rowid_path in plan:
                 yield rowid, self.get(rowid)
 
     def filter_row(self, _rowid, filters):
