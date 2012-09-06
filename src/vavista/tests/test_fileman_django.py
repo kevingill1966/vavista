@@ -12,11 +12,8 @@
 
 import unittest
 
-from vavista.fileman import connect, transaction, FilemanError
+from vavista.fileman import connect, transaction
 from vavista.M import Globals
-
-from vavista.fileman.dbsfile import RowIterator, IndexIterator
-from vavista.fileman.shared import clean_rowid
 
 class TestDjango(unittest.TestCase):
 
@@ -123,8 +120,8 @@ class TestDjango(unittest.TestCase):
         Globals.deserialise(self.IX)
 
         pytest = self.dbs.get_file("PYTEST20")
-        for i in range(10):
-            pytest.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
+        for i in range(1, 11):
+            pytest.insert(NAME='ROW%x' % i, TEXTLINE_ONE="%x: LINE 1" % i, TEXTLINE2="%x: LINE 2" % i)
         transaction.commit()
 
         # Are indices setup
@@ -151,45 +148,47 @@ class TestDjango(unittest.TestCase):
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest.traverser(filters=[['_rowid', '=', '4']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['_rowid', '=', '4']])
+        result = list(cursor)
+
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
-        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[0][1][0], 'ROW4')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, RowIterator)
-        self.assertEqual(clean_rowid(cursor.from_rowid), '4')
-        self.assertEqual(clean_rowid(cursor.to_rowid), '4')
-        self.assertEqual(cursor.from_rule, '>=')
-        self.assertEqual(cursor.to_rule, '<=')
+        plan = list(pytest.query(filters=[['_rowid', '=', '4']], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("file_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 4 AND X <= 4"), -1)
 
-        cursor = pytest.traverser(filters=[['_rowid', '>=', '4']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['_rowid', '>=', '4']])
+        result = list(cursor)
         self.assertEqual(len(result), 7)
         self.assertEqual(result[0][0], '4')
-        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[0][1][0], 'ROW4')
         self.assertEqual(result[-1][0], '10')
-        self.assertEqual(result[-1][1][0], 'ROW9')
+        self.assertEqual(result[-1][1][0], 'ROWa')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, RowIterator)
-        self.assertEqual(clean_rowid(cursor.from_rowid), '4')
-        self.assertEqual(cursor.to_rowid, None)
-        self.assertEqual(cursor.from_rule, '>=')
+        plan = list(pytest.query(filters=[['_rowid', '>=', '4']], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("file_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 4 AND X None None"), -1)
 
-        cursor = pytest.traverser(filters=[['_rowid', 'in', ['4']]])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['_rowid', 'in', ['4']]])
+        result = list(cursor)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
-        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[0][1][0], 'ROW4')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, RowIterator)
-        self.assertEqual(clean_rowid(cursor.from_rowid), '4')
-        self.assertEqual(clean_rowid(cursor.to_rowid), '4')
-        self.assertEqual(cursor.from_rule, '>=')
-        self.assertEqual(cursor.to_rule, '<=')
+        plan = list(pytest.query(filters=[['_rowid', 'in', ['4']]], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("file_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 4 AND X <= 4"), -1)
 
 
     def test_single_rule_index(self):
@@ -199,53 +198,46 @@ class TestDjango(unittest.TestCase):
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest.traverser(filters=[['name', '=', 'ROW3']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['name', '=', 'ROW4']])
+        result = list(cursor)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
-        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[0][1][0], 'ROW4')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, IndexIterator)
-        self.assertEqual(cursor.index, 'B')
-        self.assertEqual(cursor.from_value, 'ROW3')
-        self.assertEqual(cursor.to_value, 'ROW3')
-        self.assertEqual(cursor.from_rule, '>=')
-        self.assertEqual(cursor.to_rule, '<=')
+        plan = list(pytest.query(filters=[['name', '=', 'ROW4']], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("index_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X <= 'ROW4'"), -1)
+        self.assertNotEquals(plan[0].find("index=B"), -1)
 
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
-
-        cursor = pytest.traverser(filters=[['name', '>=', 'ROW3']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['name', '>=', 'ROW4']])
+        result = list(cursor)
         self.assertEqual(len(result), 7)
         self.assertEqual(result[0][0], '4')
-        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[0][1][0], 'ROW4')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, IndexIterator)
-        self.assertEqual(cursor.index, 'B')
-        self.assertEqual(cursor.from_value, 'ROW3')
-        self.assertEqual(cursor.to_value, None)
-        self.assertEqual(cursor.from_rule, '>=')
+        plan = list(pytest.query(filters=[['name', '>=', 'ROW4']], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("index_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X None 'None'"), -1)
+        self.assertNotEquals(plan[0].find("index=B"), -1)
 
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
-
-        cursor = pytest.traverser(filters=[['name', 'in', ['ROW3']]])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['name', 'in', ['ROW4']]])
+        result = list(cursor)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
-        self.assertEqual(result[0][1][0], 'ROW3')
+        self.assertEqual(result[0][1][0], 'ROW4')
 
-        # Check the query plan
-        self.assertEqual(cursor.__class__, IndexIterator)
-        self.assertEqual(cursor.index, 'B')
-        self.assertEqual(cursor.from_value, 'ROW3')
-        self.assertEqual(cursor.to_value, 'ROW3')
-        self.assertEqual(cursor.from_rule, '>=')
-        self.assertEqual(cursor.to_rule, '<=')
-
+        plan = list(pytest.query(filters=[['name', 'in', ['ROW4']]], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("index_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X <= 'ROW4'"), -1)
+        self.assertNotEquals(plan[0].find("index=B"), -1)
 
     def test_two_rule_index(self):
         """
@@ -254,8 +246,8 @@ class TestDjango(unittest.TestCase):
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest.traverser(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']])
+        result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][1][0], 'ROW3')
         self.assertEqual(result[1][1][0], 'ROW4')
@@ -263,12 +255,29 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[3][1][0], 'ROW6')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, IndexIterator)
-        self.assertEqual(cursor.index, 'B')
-        self.assertEqual(cursor.from_value, 'ROW3')
-        self.assertEqual(cursor.to_value, 'ROW6')
-        self.assertEqual(cursor.from_rule, '>=')
-        self.assertEqual(cursor.to_rule, '<=')
+        plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("index_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X >= 'ROW3' AND X <= 'ROW6'"), -1)
+        self.assertNotEquals(plan[0].find("index=B"), -1)
+
+
+        cursor = pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], order_by=[["name", "desc"]])
+        result = list(cursor)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[0][1][0], 'ROW6')
+        self.assertEqual(result[1][1][0], 'ROW5')
+        self.assertEqual(result[2][1][0], 'ROW4')
+        self.assertEqual(result[3][1][0], 'ROW3')
+
+        # Check the query plan
+        plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], order_by=[["name", "desc"]], explain=True))
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0].find("index_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=False"), -1)
+        self.assertNotEquals(plan[0].find("X <= 'ROW6' AND X >= 'ROW3'"), -1)
+        self.assertNotEquals(plan[0].find("index=B"), -1)
 
     def test_no_index(self):
         """
@@ -277,17 +286,22 @@ class TestDjango(unittest.TestCase):
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest.traverser(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
+        result = list(cursor)
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
         self.assertEqual(result[1][1][0], 'ROW4')
         self.assertEqual(result[2][1][0], 'ROW5')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, RowIterator)
-        self.assertEqual(cursor.from_rowid, None)
-        self.assertEqual(cursor.to_rowid, None)
+        plan = list(pytest.query(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']], explain=True))
+        self.assertEqual(len(plan), 2)
+        self.assertEqual(plan[0].find("file_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X None None AND X None None"), -1)
+        self.assertEquals(plan[1].find("apply_filters filters"), 0)
+        self.assertNotEquals(plan[1].find("[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']]"), -1)
+
 
     def test_index_plus_filter(self):
         """
@@ -298,21 +312,26 @@ class TestDjango(unittest.TestCase):
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest.traverser(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
+        cursor = pytest.query(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
             ['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        result = list(cursor)
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
         self.assertEqual(result[1][1][0], 'ROW4')
         self.assertEqual(result[2][1][0], 'ROW5')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, IndexIterator)
-        self.assertEqual(cursor.index, 'B')
-        self.assertEqual(cursor.from_value, 'A')
-        self.assertEqual(cursor.to_value, 'Z')
-        self.assertEqual(cursor.from_rule, '>')
-        self.assertEqual(cursor.to_rule, '<')
+        plan = list(pytest.query(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
+            ['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']], explain=True))
+        self.assertEqual(len(plan), 2)
+
+        self.assertEqual(plan[0].find("index_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X > 'A' AND X < 'Z'"), -1)
+        self.assertNotEquals(plan[0].find("index=B"), -1)
+
+        self.assertEquals(plan[1].find("apply_filters filters"), 0)
+        self.assertNotEquals(plan[1].find("[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']]"), -1)
 
     def test_index_in(self):
         """
@@ -322,17 +341,21 @@ class TestDjango(unittest.TestCase):
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
 
-        cursor = pytest.traverser(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]])
-        result = [(cursor.lastrowid, values) for values in cursor]
+        cursor = pytest.query(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]])
+        result = list(cursor)
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
         self.assertEqual(result[1][1][0], 'ROW4')
         self.assertEqual(result[2][1][0], 'ROW5')
 
         # Check the query plan
-        self.assertEqual(cursor.__class__, RowIterator)
-        self.assertEqual(cursor.from_rowid, None)
-        self.assertEqual(cursor.to_rowid, None)
+        plan = list(pytest.query(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]], explain=True))
+        print plan
+        self.assertEqual(plan[0].find("file_order_traversal"), 0)
+        self.assertNotEquals(plan[0].find("ascending=True"), -1)
+        self.assertNotEquals(plan[0].find("X None None AND X None None"), -1)
+        self.assertEquals(plan[1].find("apply_filters"), 0)
+        self.assertNotEquals(plan[1].find("filters = [['name', 'in', ['ROW3', 'ROW4', 'ROW5']]]"), -1)
 
 test_cases = (TestDjango, )
 

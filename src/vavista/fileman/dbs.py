@@ -68,6 +68,9 @@ class DBSFileRemote:
     def count(self, limit=None):
         return self.remote.dbsfile_count(self.handle, limit=limit)
 
+    def query(self, limit=100, offset=None, asdict=False, filters=None, order_by=None):
+        return self.remote.dbsfile_query(self.handle, limit=limit, offset=offset, asdict=asdict,
+            filters=filters, order_by=order_by)
 
 class DBS(object):
 

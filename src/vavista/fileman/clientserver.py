@@ -170,6 +170,15 @@ class FilemandClient:
                 row['_rowid'] = rowid
             yield row
 
+    def dbsfile_query(self, handle, limit, offset, asdict, filters, order_by):
+        fieldnames, rows = self._mk_request("dbsfile_query", handle=handle,
+            data = dict(limit=limit, offset=offset, filters=filters, order_by=order_by))
+        for rowid, row in rows:
+            if asdict:
+                row = dict(zip(fieldnames, row))
+                row['_rowid'] = rowid
+            yield row
+
     def dbsfile_count(self, handle, limit):
         return self._mk_request("dbsfile_count", handle=handle,
             data=dict(limit=limit))
@@ -366,3 +375,14 @@ class FilemandServer:
         dbsfile = self.handles[long(handle)]
         limit = request['limit']
         return dbsfile.count(limit = limit)
+
+    # I want to pass in:
+    # order by
+    # filters
+    def cmd_dbsfile_query(self, handle, request):
+        dbsfile = self.handles[long(handle)]
+        cursor = dbsfile.query(limit=request['limit'], offset=request['offset'], filters=request['filters'], order_by=request['order_by'])
+        rv = list(cursor)
+        logger.debug("returning %d rows", len(rv))
+        return (dbsfile.fieldnames(), rv)
+

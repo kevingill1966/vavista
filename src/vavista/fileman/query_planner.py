@@ -16,6 +16,14 @@ from shared import valid_rowid
 
 logger = logging.getLogger(__file__)
 
+def _reverse_sign(s):
+    "used for logging"
+    if s == '>=': return '<='
+    if s == '<=': return '>='
+    if s == '>': return '<'
+    if s == '<': return '>'
+    return s
+
 ### The generators that implement the pipeline
 
 def offset_limit(stream, limit=None, offset=None, explain=False):
@@ -79,13 +87,60 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
     for key, rowid in values:
         yield rowid
 
-def file_order_traversal(gl, from_rowid=None, to_rowid=None, ascending=True, from_rule=">=", to_rule="<", explain=False):
+def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
+    """
+        Return true of false for whether rowid matches the set of filters,
+        These are intended to handle the django filters.
+
+        column > x
+        column < x
+    """
+    if explain:
+        for message in stream: yield message
+        yield "apply_filters filters = %s" % filters
+        return
+
+    dd = dbsfile.dd
+    file_root = M.Globals.from_closed_form("%s)" % dd.m_open_form()[:-1])
+    for rowid in stream:
+        rec = file_root[rowid]
+        emit = True
+        for colname, comparator, value in filters:
+            field = dbsfile._dd_field_byname(colname)
+            db_value = field.retrieve(rec, gl_cache)
+
+            if comparator == '='  and not (db_value == value):
+                emit = False
+                break
+            if comparator == '>=' and not (db_value >= value):
+                emit = False
+                break
+            if comparator == '>'  and not (db_value > value):
+                emit = False
+                break
+            if comparator == '<'  and not (db_value < value):
+                emit = False
+                break
+            if comparator == '<=' and not (db_value <= value):
+                emit = False
+                break
+            if comparator == 'in' and not (db_value in value):
+                emit = False
+                break
+            # TODO: move the comparator logic into the data-dictionary.
+            #       logic will depend of field types.
+
+        if emit:
+            yield rowid
+
+
+def file_order_traversal(gl, from_rowid=None, to_rowid=None, ascending=True, from_rule=None, to_rule=None, explain=False):
     """
         Originate records by traversing the file in file order (i.e. no index)
     """
     if explain:
-        yield "file_order_traversal, ascending=%s, gl=%s, %s %s X %s %s" % (ascending,
-                gl, from_rowid, from_rule, to_rule, to_rowid)
+        yield "file_order_traversal, ascending=%s, gl=%s, X %s %s AND X %s %s" % (ascending,
+                gl, from_rule, from_rowid, to_rule, to_rowid)
         return
 
     # the new person file has non-integer user ids
@@ -183,8 +238,8 @@ def index_order_traversal(gl_prefix, index, from_value=None, to_value=None, asce
     gl = gl_prefix + '"%s",' % index
 
     if explain:
-        yield "index_order_traversal, ascending=%s, gl=%s, index=%s, '%s' %s X %s '%s'" % (ascending,
-                gl, index, from_value, from_rule, to_rule, to_value)
+        yield "index_order_traversal, ascending=%s, gl=%s, index=%s, X %s '%s' AND X %s '%s'" % (ascending,
+                gl, index, from_rule, from_value, to_rule, to_value)
         return
 
     if from_value != None and to_value != None:
@@ -453,7 +508,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                     order_by = None
                 else:
                     ascending = True
-                if ascending: # reverse the 
+                if ascending:
                     pipeline.append(file_order_traversal(gl_prefix, from_rowid=lb_value, to_rowid=ub_value,
                         from_rule=lb_rule, to_rule=ub_rule, ascending=True, explain=explain))
                 else:
@@ -475,6 +530,9 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
 
         if order_by:
             pipeline.append(sorter(pipeline[0], order_by, dd, gl_cache, explain=explain))
+
+    if filters:
+        pipeline.append(apply_filters(pipeline[0], dbsfile, filters, gl_cache, explain=explain))
 
     if offset or limit:
         pipeline.append(offset_limit(pipeline[0], limit=limit, offset=offset, explain=explain))

@@ -13,56 +13,14 @@ from dbsrow import DBSRow
 
 logger = logging.getLogger(__file__)
 
-class Sorter:
-    """
-        If we are sorting the result, create a temporary store with key, fileid.
-        Only support a order_by columns with the same direction (i.e. ascending or descending).
-    """
-    values = None
-    ascending = True
-    fields = None
-    _gl_cache = None
-
-    def __init__(self, order_by, dd, cache = None):
-        self.order_by = order_by
-        self.dd = dd
-        self.fields = fields = []
-        for (fieldname, direction) in order_by:
-            fieldid = dd.attrs[fieldname]
-            field = dd.fields[fieldid]
-            if direction == 'ASC':
-                self.ascending = True
-            else:
-                self.ascending = False
-            fields.append(field)
-        self._gl = M.Globals.from_closed_form("%s)" % dd.m_open_form()[:-1])
-        self.values = list()
-        self._gl_cache = cache
-
-    def __iter__(self):
-        """
-            return the rowids 
-        """
-        values = sorted(self.values)
-        if not self.ascending:
-            values = reversed(values)
-        return iter(x[1] for x in values)
-
-    def push(self, rowid):
-        """
-            Retrieve the sorting data.
-        """
-        rec = self._gl[rowid]
-        key = [field.retrieve(rec, self._gl_cache) for field in self.fields]
-        self.values.append((key, rowid))
+from query_planner import make_plan
 
 class IndexIterator:
-    results_complete = False
     results = None
 
     def __init__(self, gl_prefix, index, from_value=None, to_value=None, ascending=True,
         from_rule=">=", to_rule="<", raw=False, getter=None, description=None, filters=None,
-        limit=None, offset=None, sorter=None):
+        limit=None, offset=None):
         """
             An iterator which will traverse an index.
             The iterator should return (key, rowid) pairs.
@@ -87,7 +45,6 @@ class IndexIterator:
         self.description = description
         self.filters = filters
         self.limit, self.offset = limit, offset
-        self.sorter = sorter
 
         if self.from_value != None and self.to_value != None:
             if self.ascending:
@@ -135,7 +92,7 @@ class IndexIterator:
         # How should I search? 
 
         # There is an inefficiency here it takes three searches to find the next record.
-        while not self.results_complete:
+        while 1:
             if lastrowid is None:
                 # locate the next matching index value
                 lastkey, = M.mexec("""set s0=$order(%ss0),%s)""" % (self.gl, asc), M.INOUT(str(lastkey)))
@@ -182,42 +139,19 @@ class IndexIterator:
                 lastrowid = None
                 continue
 
-            if self.sorter:
-                self.sorter.push(lastrowid)
-            else:
-                if self.filters:
-                    # Are filters to be applied?
-                    if not self.filters(lastrowid):
-                        continue
-
-                if self.skip_rows > 0:
-                    self.skip_rows -= 1
+            if self.filters:
+                # Are filters to be applied?
+                if not self.filters(lastrowid):
                     continue
 
-                self.lastrowid = lastrowid
-                if self.raw:
-                    return self.lastkey, self.lastrowid
-                return self.getter(self.lastrowid)
+            if self.skip_rows > 0:
+                self.skip_rows -= 1
+                continue
 
-        self.results_complete = True
-
-        if self.sorter:
-            if self.results is None:
-                self.results = iter(self.sorter)
-
-            while 1:
-                lastrowid = self.results.next()
-                if self.filters:
-                    # Are filters to be applied?
-                    if not self.filters(lastrowid):
-                        continue
-                if self.skip_rows > 0:
-                    self.skip_rows -= 1
-                    continue
-                self.lastrowid = lastrowid
-                if self.raw:
-                    return self.lastkey, self.lastrowid
-                return self.getter(self.lastrowid)
+            self.lastrowid = lastrowid
+            if self.raw:
+                return self.lastkey, self.lastrowid
+            return self.getter(self.lastrowid)
 
         raise StopIteration
 
@@ -227,7 +161,7 @@ class RowIterator:
 
     def __init__(self, gl, from_rowid=None, to_rowid=None, ascending=True,
         from_rule=">=", to_rule="<", raw=False, getter=None, description=None,
-        filters=None, limit=None, offset=None, sorter=None):
+        filters=None, limit=None, offset=None):
         """
             An iterator which will traverse a table
         """
@@ -243,7 +177,6 @@ class RowIterator:
         self.filters = filters
         self.limit = limit
         self.offset = offset
-        self.sorter = sorter
 
         # the new person file has non-integer user ids
         if self.from_rowid != None:
@@ -291,9 +224,8 @@ class RowIterator:
     def next(self):
 
         # Have we exceeded limit
-        if not self.sorter and self.limit:
-            if self.results_returned >= self.limit:
-                raise StopIteration
+        if self.limit and self.results_returned >= self.limit:
+            raise StopIteration
 
         lastrowid = self.lastrowid    # This value should be a string throughout. 
         if self.ascending:
@@ -344,49 +276,24 @@ class RowIterator:
                     if f_lastrowid < self.to_rowid and self.to_rule == ">=":
                         break
 
-            if self.sorter:
-                self.sorter.push(lastrowid)
-            else:
-                if self.filters:
-                    # Are filters to be applied?
-                    if not self.filters(lastrowid):
-                        continue
-
-                if self.skip_rows > 0:
-                    self.skip_rows -= 1
+            if self.filters:
+                # Are filters to be applied?
+                if not self.filters(lastrowid):
                     continue
 
-                self.lastrowid = lastrowid
+            if self.skip_rows > 0:
+                self.skip_rows -= 1
+                continue
 
-                self.results_returned += 1
+            self.lastrowid = lastrowid
 
-                if self.raw:
-                    return self.lastrowid
-                return self.getter(self.lastrowid)
+            self.results_returned += 1
+
+            if self.raw:
+                return self.lastrowid
+            return self.getter(self.lastrowid)
 
         self.results_complete = True
-
-        if self.sorter:
-            if self.results is None:
-                self.results = iter(self.sorter)
-            while 1:
-                lastrowid = self.results.next()
-                if self.limit:
-                    if self.results_returned >= self.limit:
-                        break
-                if self.filters:
-                    # Are filters to be applied?
-                    if not self.filters(lastrowid):
-                        continue
-                if self.skip_rows > 0:
-                    self.skip_rows -= 1
-                    continue
-                self.lastrowid = lastrowid
-                self.results_returned += 1
-                if self.raw:
-                    return self.lastrowid
-                return self.getter(self.lastrowid)
-
         raise StopIteration
 
 class DBSFile(object):
@@ -418,6 +325,7 @@ class DBSFile(object):
             self._fieldnames = None
 
         assert (dd.fileid is not None)
+        self._field_cache = {}
 
     def __str__(self):
         return "DBSFILE %s (%s)" % (self.dd.filename, self.dd.fileid)
@@ -653,28 +561,19 @@ class DBSFile(object):
         gl_prefix = self.dd.m_open_form()
         self._gl_cache = {}
 
-        self._field_cache = {}
         if filters:
             filter_function = lambda rowid: self.filter_row(rowid, filters)
         else:
             filter_function = None
 
-        # TODO: order_by - will work if I can find an index. However, I cannot find
-        #                  an index, I have to extract the sorting columns and do a
-        #                  filesort.
-
-        if order_by and not pre_sorted:
-            sorter = Sorter(order_by, self.dd, self._field_cache)
-        else:
-            sorter = None
         if index:
             return IndexIterator(gl_prefix, index, from_value, to_value, ascending,
                 from_rule, to_rule, raw, getter=self.get, description=self.description,
-                filters=filter_function, limit=limit, offset=offset, sorter=sorter)
+                filters=filter_function, limit=limit, offset=offset)
         else:
             return RowIterator(gl_prefix, from_value, to_value, ascending,
                 from_rule, to_rule, raw, getter=self.get, description=self.description,
-                filters=filter_function, limit=limit, offset=offset, sorter=sorter)
+                filters=filter_function, limit=limit, offset=offset)
 
     def _dd_field_byname(self, colname):
         """ Cached lookup of data-dictionary """
@@ -683,6 +582,19 @@ class DBSFile(object):
             fieldid = self.dd.attrs[colname]
             self._field_cache[colname] = field = self.dd.fields[fieldid]
         return field
+
+    def query(self, filters=None, limit=None, offset=None, order_by=None, explain=False):
+        """
+            This is implemented to support Django Clients
+        """
+        gl_cache = {}
+        plan = make_plan(self, filters=filters, order_by=order_by, limit=limit, offset=offset, gl_cache=gl_cache, explain=explain)
+        if explain:
+            for message in plan:
+                yield message
+        else:
+            for rowid in plan:
+                yield rowid, self.get(rowid)
 
     def filter_row(self, _rowid, filters):
         """
