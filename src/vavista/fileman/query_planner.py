@@ -24,7 +24,9 @@ def _reverse_sign(s):
     if s == '<': return '>'
     return s
 
-### The generators that implement the pipeline
+#------------------------------------------------------------------------------------------------
+# The generators that implement the pipeline
+# These pass the rowid and the global root of the row downwards.
 
 def offset_limit(stream, limit=None, offset=None, explain=False):
     """
@@ -66,26 +68,32 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
     fields = []
 
     for (fieldname, direction) in order_by:
-        fieldid = dd.attrs[fieldname]
-        field = dd.fields[fieldid]
+        if fieldname.startswith('_rowid'):
+            fields.append(fieldname)
+        else:
+            fieldid = dd.attrs[fieldname]
+            field = dd.fields[fieldid]
+            fields.append(field)
         if direction == 'ASC':
             ascending = True
         else:
             ascending = False
-        fields.append(field)
 
-    _gl = M.Globals.from_closed_form("%s)" % dd.m_open_form()[:-1])
-
-    for rowid in stream:
-        rec = _gl[rowid]
-        key = [field.retrieve(rec, gl_cache) for field in fields]
-        values.append((key, rowid))
+    for rowid, rec_gl_closed_form in stream:
+        rec = M.Globals.from_closed_form(rec_gl_closed_form)
+        key = []
+        for field in fields:
+            if field == '_rowid':
+                key.append(rowid)
+            else:
+                key.append(field.retrieve(rec, gl_cache))
+        values.append((key, (rowid, rec_gl_closed_form)))
 
     values.sort()
     if not ascending:
         values.reverse()
-    for key, rowid in values:
-        yield rowid
+    for key, (rowid, rec_gl_closed_form) in values:
+        yield (rowid, rec_gl_closed_form)
 
 def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
     """
@@ -100,10 +108,8 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
         yield "apply_filters filters = %s" % filters
         return
 
-    dd = dbsfile.dd
-    file_root = M.Globals.from_closed_form("%s)" % dd.m_open_form()[:-1])
-    for rowid in stream:
-        rec = file_root[rowid]
+    for rowid, rec_gl_closed_form in stream:
+        rec = M.Globals.from_closed_form(rec_gl_closed_form)
         emit = True
         for colname, comparator, value in filters:
             ## Need mumps comparisons here - numerics versus non-numerics
@@ -144,8 +150,7 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
             #       logic will depend of field types.
 
         if emit:
-            yield rowid
-
+            yield rowid, rec_gl_closed_form 
 
 def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
     """
@@ -240,8 +245,24 @@ def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
                 if f_lastrowid < to_rowid and to_rule == ">=":
                     break
 
-        yield lastrowid
+        yield (lastrowid, "%s%s)" % (gl, lastrowid))
 
+def subfile_traversal(stream, gl, dd, ascending=True, explain=False):
+    """
+        This is chained to a parent file traverser.
+        It receives a parent file rowid, and pulls the subfile rowids.
+
+        TODO: How to support more than one level of parent / child
+    """
+    import pdb; pdb.set_trace()
+
+    parent_dd = dd.parent_dd
+    parent_gl = gl
+
+    if explain:
+        for message in stream: yield message
+        yield "subfile_traversal, ascending=%s, gl=%s" % (ascending, gl)
+        return
 
 def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain=False):
     """
@@ -352,7 +373,9 @@ def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain
             lastrowid = None
             continue
 
-        yield(lastrowid)
+        yield (lastrowid, "%s%s)" % (gl_prefix, lastrowid))
+
+#------------------------------------------------------------------------------------------------
 
 def _index_for_column(dd, col_fieldid):
     """
@@ -464,11 +487,12 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
         gl_cache is used to cache globals retrieved to 
         avoid extra calls into M
     """
-    pipeline = []
+    pipeline = None
 
     dd = dbsfile.dd
-    parent_dd = dbsfile.dd.parent_dd
 
+    if dd.parent_dd:
+        return make_subfile_plan(dbsfile, filters=filters, order_by=order_by, limit=limit, offset=offset, gl_cache=gl_cache, explain=explain)
 
     ### First we need a traverser. There are a number of options,
     ### file_order_traversal - order by the file records
@@ -485,7 +509,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
 
     ### Case 1: Straight file dump
     if not filters and not order_by:
-        pipeline.append(file_order_traversal(gl_prefix, explain=explain))
+        pipeline = file_order_traversal(gl_prefix, explain=explain)
     
     ### Case 2:  if there is no filters, but there is an order by,
     #            find an index for the order_by
@@ -497,9 +521,9 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
 
         if len(order_by) == 1 and order_by[0][0] == '_rowid':
             if order_by[0][1] == 'ASC':
-                pipeline.append(file_order_traversal(gl_prefix, explain=explain))
+                pipeline = file_order_traversal(gl_prefix, explain=explain)
             else:
-                pipeline.append(file_order_traversal(gl_prefix, ascending=False, explain=explain))
+                pipeline = file_order_traversal(gl_prefix, ascending=False, explain=explain)
 
         else:
             # TODO: Subfiles
@@ -507,10 +531,10 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
             order_fieldid = dd.attrs[order_col]
             index = _index_for_column(dd, order_fieldid)
             if index:
-                pipeline.append(index_order_traversal(gl_prefix, index, ascending = (order_by[0][1] == 'ASC'), explain=explain))
+                pipeline = index_order_traversal(gl_prefix, index, ascending = (order_by[0][1] == 'ASC'), explain=explain)
             else:
-                pipeline.append(file_order_traversal(gl_prefix, explain=explain))
-                pipeline.append(sorter(pipeline[0], order_by, dd, gl_cache, explain=explain))
+                pipeline = file_order_traversal(gl_prefix, explain=explain)
+                pipeline = sorter(pipeline, order_by, dd, gl_cache, explain=explain)
 
             
     ### Case 3: There are filters
@@ -519,7 +543,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
         # 1. Identify the sargable columns
         sargable = _filters_to_sargable(filters)
         if not sargable:
-            pipeline.append(file_order_traversal(gl_prefix, explain=explain))
+            pipeline = file_order_traversal(gl_prefix, explain=explain)
         else:
 
             # 2. find columns with indexes
@@ -530,7 +554,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                 index = None
 
             else:
-                indices =  _possible_indices(sargable, dd, parent_dd)
+                indices =  _possible_indices(sargable, dd, None)
                 if len(indices) == 0:
                     colname = None
                     index = None
@@ -564,25 +588,59 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                 ascending = True
 
             ranges = _ranges_from_index_filters(index_filters, ascending)
-            r = ranges[0]
-            from_value = r['from_value']
-            to_value = r['to_value']
-            from_rule = r['from_rule']
-            to_rule = r['to_rule']
 
             if index == None:
-                # File order traversal
-                pipeline.append(file_order_traversal(gl_prefix, ranges=ranges, ascending=ascending, explain=explain))
+                pipeline = file_order_traversal(gl_prefix, ranges=ranges, ascending=ascending, explain=explain)
             else:
-                pipeline.append(index_order_traversal(gl_prefix, index=index, ranges=ranges, ascending=ascending, explain=explain))
+                pipeline = index_order_traversal(gl_prefix, index=index, ranges=ranges, ascending=ascending, explain=explain)
 
         if order_by:
-            pipeline.append(sorter(pipeline[0], order_by, dd, gl_cache, explain=explain))
+            pipeline = sorter(pipeline, order_by, dd, gl_cache, explain=explain)
 
     if filters:
-        pipeline.append(apply_filters(pipeline[0], dbsfile, filters, gl_cache, explain=explain))
+        pipeline = apply_filters(pipeline, dbsfile, filters, gl_cache, explain=explain)
 
     if offset or limit:
-        pipeline.append(offset_limit(pipeline[0], limit=limit, offset=offset, explain=explain))
+        pipeline = offset_limit(pipeline, limit=limit, offset=offset, explain=explain)
 
-    return pipeline.pop()
+    return pipeline
+
+def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cache=None, explain=False):
+    """
+        Sub-files are of an arbitrary depth. 
+        The primary key has to be made up of _rowid, _rowid1, _rowid2 ... _rowidn
+
+        There are really two options here, we are pulling records
+        from a single parent, or we are searching for a parent using
+        a multiple field such as SSN.
+    """
+    pipeline = None
+
+    dd = dbsfile.dd
+
+    # Construct a list of the parents.
+    parent_dds = [dbsfile.dd]
+    while dd.parent_dd:
+        parent_dds.append(dd.parent_dd)
+        dd = dd.parent_dd
+
+    dd = dbsfile.dd
+
+    # Normal access will be of the order [_rowid1=2 and _rowid2=3 order by _rowid]
+    # Construct a list of selectors at each depth.
+    sargable = _filters_to_sargable(filters)
+
+    matched = []
+    for i in range(len(parent_dds)-1, -1, -1):
+        label = '_rowid%d' % i
+        if label in sargable:
+            matched.append((parent_dds[i], sargable[label]))
+            del sargable[label]
+        else:
+            break
+
+    ranges = _ranges_from_index_filters(matched[0][1])
+    gl_prefix = matched[0][0].dd.m_open_form()
+    pipeline = file_order_traversal(gl_prefix, ranges=ranges, explain=explain)
+
+    return pipeline

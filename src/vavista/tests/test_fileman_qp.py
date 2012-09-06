@@ -146,42 +146,54 @@ class TestPlanner(unittest.TestCase):
 
         # File order traversal, default order - ascending
         result = list(make_plan(pytest))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
 
         # File order traversal, default order - ascending
         result = list(make_plan(pytest, order_by = [["_rowid", "ASC"]]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
 
         # File order traversal, descending
         result = list(make_plan(pytest, order_by = [["_rowid", "DESC"]]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['10', '9', '8', '7', '6', '5', '4', '3', '2', '1'])
 
         result = list(make_plan(pytest, order_by = [["_rowid", "ASC"]], limit=3))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3'])
 
         result = list(make_plan(pytest, order_by = [["_rowid", "ASC"]], offset=8))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['9', '10'])
 
         result = list(make_plan(pytest, filters = [["_rowid", ">", '8']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['9', '10'])
 
         result = list(make_plan(pytest, filters = [["_rowid", ">=", '8']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['8', '9', '10'])
 
         result = list(make_plan(pytest, filters = [["_rowid", "<", '3']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2'])
 
         result = list(make_plan(pytest, filters = [["_rowid", "<=", '3']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3'])
 
         result = list(make_plan(pytest, filters = [["_rowid", "=", '5']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['5'])
 
         result = list(make_plan(pytest, filters = [["_rowid", ">=", '5'], ["_rowid", "<=", "7"]]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['5', '6', '7'])
 
         result = list(make_plan(pytest, filters = [["_rowid", ">=", '5'], ["_rowid", "<=", "7"]],
             order_by = [["_rowid", "DESC"]]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['7', '6', '5'])
 
     def test_index_b(self):
@@ -194,37 +206,48 @@ class TestPlanner(unittest.TestCase):
             'NAME', 'Textline_One', 'textline2'])
 
         result = list(make_plan(pytest, order_by=[['NAME', 'ASC']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
 
         result = list(make_plan(pytest, order_by=[['NAME', 'DESC']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['10', '9', '8', '7', '6', '5', '4', '3', '2', '1'])
 
         result = list(make_plan(pytest, order_by = [["NAME", "ASC"]], limit=3))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3'])
 
         result = list(make_plan(pytest, order_by = [["NAME", "ASC"]], offset=8))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['9', '10'])
 
         result = list(make_plan(pytest, filters = [["NAME", ">", 'ROW8']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['9', '10'])
 
         result = list(make_plan(pytest, filters = [["NAME", ">=", 'ROW8']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['8', '9', '10'])
 
         result = list(make_plan(pytest, filters = [["NAME", "<", 'ROW3']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2'])
 
         result = list(make_plan(pytest, filters = [["NAME", "<=", 'ROW3']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['1', '2', '3'])
 
         result = list(make_plan(pytest, filters = [["NAME", "=", 'ROW5']]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['5'])
 
         result = list(make_plan(pytest, filters = [["NAME", ">=", 'ROW5'], ["NAME", "<=", "ROW7"]]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['5', '6', '7'])
 
         result = list(make_plan(pytest, filters = [["NAME", ">=", 'ROW5'], ["NAME", "<=", "ROW7"]],
             order_by = [["NAME", "DESC"]]))
+        result = [row[0] for row in result]
         self.assertEqual(result, ['7', '6', '5'])
 
 

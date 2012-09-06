@@ -977,9 +977,12 @@ class _DD(object):
                 # Subfile being composed directly. - I don't know the field
                 # id in the parent.
                 parent_fileid = M.Globals["^DD"][fileid][0]["UP"].value
-                self.parent_dd = DD(parent_fileid)
+                parent_dd = self.parent_dd = DD(parent_fileid)
 
-                # parent fieldid ?
+                for fieldid, field in parent_dd.fields.items():
+                    if field.fmql_type == FT_SUBFILE and field._subfileid == fileid:
+                        self.parent_fieldid = fieldid
+                        break
 
             elif M.Globals["^DIC"][fileid]["0"].exists():
                 dic_header = M.Globals["^DIC"][fileid]["0"].value

@@ -273,7 +273,7 @@ class TestDjango(unittest.TestCase):
 
         # Check the query plan
         plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], order_by=[["name", "desc"]], explain=True))
-        self.assertEqual(len(plan), 2)
+        self.assertEqual(len(plan), 3)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=False"), -1)
         self.assertNotEquals(plan[0].find("X <= 'ROW6' AND X >= 'ROW3'"), -1)
@@ -363,8 +363,10 @@ class TestDjango(unittest.TestCase):
         """
         #pytest = self.dbs.get_file("5.01", fieldnames=["county", "abbreviation", "va_county_code", "catchment_code", "inactive_date"])
 
+        #import pdb; pdb.set_trace()
         #plan = list(pytest.query(order_by = [["_parent_rowid", "ASC"], ["_rowid", "ASC"]],
-        #        filters = [["_parent_rowid", "=", "6"]], explain=True))
+        #        filters = [["_rowid1", "=", "6"]], explain=True))
+        #print plan
 
 test_cases = (TestDjango, )
 
