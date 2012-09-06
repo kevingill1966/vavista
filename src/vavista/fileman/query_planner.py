@@ -53,7 +53,7 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
         yield "sorter order_by = %s" % order_by
         return
 
-    values = None
+    values = []
     ascending = True
     fields = []
 
@@ -84,7 +84,8 @@ def file_order_traversal(gl, from_rowid=None, to_rowid=None, ascending=True, fro
         Originate records by traversing the file in file order (i.e. no index)
     """
     if explain:
-        yield "file_order_traversal, gl=%s, %s %s X %s %s" % (gl, from_rowid, from_rule, to_rule, to_rowid)
+        yield "file_order_traversal, ascending=%s, gl=%s, %s %s X %s %s" % (ascending,
+                gl, from_rowid, from_rule, to_rule, to_rowid)
         return
 
     # the new person file has non-integer user ids
@@ -182,7 +183,8 @@ def index_order_traversal(gl_prefix, index, from_value=None, to_value=None, asce
     gl = gl_prefix + '"%s",' % index
 
     if explain:
-        yield "index_order_traversal, gl=%s, index=%s, '%s' %s X %s '%s'" % (gl, index, from_value, from_rule, to_rule, to_value)
+        yield "index_order_traversal, ascending=%s, gl=%s, index=%s, '%s' %s X %s '%s'" % (ascending,
+                gl, index, from_value, from_rule, to_rule, to_value)
         return
 
     if from_value != None and to_value != None:
@@ -196,9 +198,14 @@ def index_order_traversal(gl_prefix, index, from_value=None, to_value=None, asce
             lastkey = " "
         else:
             lastkey = "ZZZZZZZZZZZZZZ"
+        lastrowid = ""
     else:
         lastkey = from_value
-    lastrowid = ""
+        if from_rule == '>':
+            lastrowid = None   # looks for the next key after lastkey
+        else:
+            lastrowid = ''     # looks for the lastkey
+
 
     if ascending:
         asc = 1
@@ -375,7 +382,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                         continue
                     if len(index.columns) == 1 and index.columns[0] in sargable_fieldids.keys():
                         colname = sargable_fieldids[index.columns[0]]
-                        sargable[colname].append(index.name, explain=explain)
+                        sargable[colname].append(index.name)
 
                 unindexed = [k for k,v in sargable.items() if len(v) == 0 and k != '_rowid']
                 for k in unindexed:
@@ -404,39 +411,39 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
             filters = [rule for rule in filters if rule[0] != colname]
 
             # 3.  Make the traversal rules (upper/lower bounds)
-            from_value, from_rule, to_value, to_rule = None, None, None, None
+            lb_value, lb_rule, ub_value, ub_rule = None, None, None, None
 
             for colname, comparator, value in index_filters:
                 if comparator in [">", ">=", "=", 'in']:
                     # TODO: comparason based on mumps rules, not python rules
-                    if from_value is None or from_value < value:
+                    if lb_value is None or lb_value < value:
                         if comparator == 'in':
                             assert(len(value) == 1)
-                            from_value = value[0]
+                            lb_value = value[0]
                         else:
-                            from_value = value
+                            lb_value = value
                         if comparator in ["=", 'in']:
-                            from_rule = ">="
+                            lb_rule = ">="
                         else:
-                            from_rule = comparator
-                    elif from_value == value:
-                        if from_rule in [">="] and comparator in [">"]:
-                            from_rule = comparator
+                            lb_rule = comparator
+                    elif lb_value == value:
+                        if lb_rule in [">="] and comparator in [">"]:
+                            lb_rule = comparator
                 if comparator in ["<", "<=", "=", 'in']:
                     # TODO: comparason based on mumps rules, not python rules
-                    if to_value is None or to_value > value:
+                    if ub_value is None or ub_value > value:
                         if comparator == 'in':
                             assert(len(value) == 1)
-                            to_value = value[0]
+                            ub_value = value[0]
                         else:
-                            to_value = value
+                            ub_value = value
                         if comparator in ["=", 'in']:
-                            to_rule = "<="
+                            ub_rule = "<="
                         else:
-                            to_rule = comparator
-                    elif to_value == value:
-                        if to_rule in ["<="] and comparator in ["<"]:
-                            to_rule = comparator
+                            ub_rule = comparator
+                    elif ub_value == value:
+                        if ub_rule in ["<="] and comparator in ["<"]:
+                            ub_rule = comparator
 
             if index == None:
                 # File order traversal
@@ -446,12 +453,25 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                     order_by = None
                 else:
                     ascending = True
-
-                pipeline.append(file_order_traversal(gl_prefix, from_rowid=from_value, to_rowid=to_value,
-                    from_rule=from_rule, to_rule=to_rule, ascending=ascending, explain=explain))
+                if ascending: # reverse the 
+                    pipeline.append(file_order_traversal(gl_prefix, from_rowid=lb_value, to_rowid=ub_value,
+                        from_rule=lb_rule, to_rule=ub_rule, ascending=True, explain=explain))
+                else:
+                    pipeline.append(file_order_traversal(gl_prefix, from_rowid=ub_value, to_rowid=lb_value,
+                        from_rule=ub_rule, to_rule=lb_rule, ascending=False, explain=explain))
             else:
-                pipeline.append(index_order_traversal(gl_prefix, index=index, from_rowid=from_value, to_rowid=to_value,
-                    from_rule=from_rule, to_rule=to_rule, explain=explain))
+                if order_by and order_by[0][0].lower() == colname.lower():
+                    ascending = (order_by[0][1] == 'ASC')
+                    order_by = None
+                else:
+                    ascending = True
+
+                if ascending:
+                    pipeline.append(index_order_traversal(gl_prefix, index=index, from_value=lb_value, to_value=ub_value,
+                        from_rule=lb_rule, to_rule=ub_rule, ascending=True, explain=explain))
+                else:
+                    pipeline.append(index_order_traversal(gl_prefix, index=index, from_value=ub_value, to_value=lb_value,
+                        from_rule=ub_rule, to_rule=lb_rule, ascending=False, explain=explain))
 
         if order_by:
             pipeline.append(sorter(pipeline[0], order_by, dd, gl_cache, explain=explain))

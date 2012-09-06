@@ -114,8 +114,8 @@ class TestPlanner(unittest.TestCase):
         Globals.deserialise(self.IX)
 
         pytest = self.dbs.get_file("PYTEST20")
-        for i in range(10):
-            pytest.insert(NAME='ROW%d' % i, TEXTLINE_ONE="%d: LINE 1" % i, TEXTLINE2="%d: LINE 2" % i)
+        for i in range(1, 11):
+            pytest.insert(NAME='ROW%x' % i, TEXTLINE_ONE="%x: LINE 1" % i, TEXTLINE2="%x: LINE 2" % i)
         transaction.commit()
 
         # Are indices setup
@@ -137,14 +137,12 @@ class TestPlanner(unittest.TestCase):
 
     def test_file_order(self):
         """
-            One rule - based on rowid
+            File order traversals.
+
+            Simple case, only filters by / order bys the file order
         """
         pytest = self.dbs.get_file("PYTEST20", fieldnames=[
             'NAME', 'Textline_One', 'textline2'])
-
-        import pdb; pdb.set_trace()
-        plan = list(make_plan(pytest, explain=True))
-        print plan
 
         # File order traversal, default order - ascending
         result = list(make_plan(pytest))
@@ -154,7 +152,7 @@ class TestPlanner(unittest.TestCase):
         result = list(make_plan(pytest, order_by = [["_rowid", "ASC"]]))
         self.assertEqual(result, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
 
-        # File order traversal, default order - ascending
+        # File order traversal, descending
         result = list(make_plan(pytest, order_by = [["_rowid", "DESC"]]))
         self.assertEqual(result, ['10', '9', '8', '7', '6', '5', '4', '3', '2', '1'])
 
@@ -182,10 +180,51 @@ class TestPlanner(unittest.TestCase):
         result = list(make_plan(pytest, filters = [["_rowid", ">=", '5'], ["_rowid", "<=", "7"]]))
         self.assertEqual(result, ['5', '6', '7'])
 
-        print list(make_plan(pytest, filters = [["_rowid", ">=", '5'], ["_rowid", "<=", "7"]],
-            order_by = [["_rowid", "DESC"]], explain=True))
         result = list(make_plan(pytest, filters = [["_rowid", ">=", '5'], ["_rowid", "<=", "7"]],
             order_by = [["_rowid", "DESC"]]))
+        self.assertEqual(result, ['7', '6', '5'])
+
+    def test_index_b(self):
+        """
+            Name order.
+
+            Simple case, only filters by / order bys the name order
+        """
+        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
+            'NAME', 'Textline_One', 'textline2'])
+
+        result = list(make_plan(pytest, order_by=[['NAME', 'ASC']]))
+        self.assertEqual(result, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+
+        result = list(make_plan(pytest, order_by=[['NAME', 'DESC']]))
+        self.assertEqual(result, ['10', '9', '8', '7', '6', '5', '4', '3', '2', '1'])
+
+        result = list(make_plan(pytest, order_by = [["NAME", "ASC"]], limit=3))
+        self.assertEqual(result, ['1', '2', '3'])
+
+        result = list(make_plan(pytest, order_by = [["NAME", "ASC"]], offset=8))
+        self.assertEqual(result, ['9', '10'])
+
+        result = list(make_plan(pytest, filters = [["NAME", ">", 'ROW8']]))
+        self.assertEqual(result, ['9', '10'])
+
+        result = list(make_plan(pytest, filters = [["NAME", ">=", 'ROW8']]))
+        self.assertEqual(result, ['8', '9', '10'])
+
+        result = list(make_plan(pytest, filters = [["NAME", "<", 'ROW3']]))
+        self.assertEqual(result, ['1', '2'])
+
+        result = list(make_plan(pytest, filters = [["NAME", "<=", 'ROW3']]))
+        self.assertEqual(result, ['1', '2', '3'])
+
+        result = list(make_plan(pytest, filters = [["NAME", "=", 'ROW5']]))
+        self.assertEqual(result, ['5'])
+
+        result = list(make_plan(pytest, filters = [["NAME", ">=", 'ROW5'], ["NAME", "<=", "ROW7"]]))
+        self.assertEqual(result, ['5', '6', '7'])
+
+        result = list(make_plan(pytest, filters = [["NAME", ">=", 'ROW5'], ["NAME", "<=", "ROW7"]],
+            order_by = [["NAME", "DESC"]]))
         self.assertEqual(result, ['7', '6', '5'])
 
 
