@@ -361,12 +361,14 @@ class TestDjango(unittest.TestCase):
             This is pulling county information from a state.
             TODO: build a test file.
         """
-        #pytest = self.dbs.get_file("5.01", fieldnames=["county", "abbreviation", "va_county_code", "catchment_code", "inactive_date"])
+        pytest = self.dbs.get_file("5.01", fieldnames=["county", "abbreviation", "va_county_code", "catchment_code", "inactive_date"])
 
-        #import pdb; pdb.set_trace()
-        #plan = list(pytest.query(order_by = [["_parent_rowid", "ASC"], ["_rowid", "ASC"]],
-        #        filters = [["_rowid1", "=", "6"]], explain=True))
-        #print plan
+        plan = list(pytest.query(order_by = [["_rowid1", "ASC"], ["_rowid", "ASC"]],
+                filters = [["_rowid1", "=", "6"]], explain=True))
+        print plan
+        result = pytest.query(order_by = [["_rowid1", "ASC"], ["_rowid", "ASC"]],
+                filters = [["_rowid1", "=", "6"]])
+        result = list(result)
 
 test_cases = (TestDjango, )
 

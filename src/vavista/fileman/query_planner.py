@@ -247,22 +247,33 @@ def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
 
         yield (lastrowid, "%s%s)" % (gl, lastrowid), [lastrowid])
 
-def subfile_traversal(stream, gl, dd, ascending=True, explain=False):
+def subfile_traversal(stream, dd, ranges=None, ascending=True, explain=False):
     """
         This is chained to a parent file traverser.
         It receives a parent file rowid, and pulls the subfile rowids.
 
-        TODO: How to support more than one level of parent / child
     """
-    import pdb; pdb.set_trace()
-
-    parent_dd = dd.parent_dd
-    parent_gl = gl
+    parent_field = dd.parent_dd.fields[dd.parent_fieldid]
+    gl_subpath = parent_field.storage.split(';',1)[0]
 
     if explain:
         for message in stream: yield message
-        yield "subfile_traversal, ascending=%s, gl=%s" % (ascending, gl)
+        yield "subfile_traversal, ascending=%s, dd=%s, ranges=%s" % (ascending, dd, ranges)
         return
+
+    for rowid, rec_gl_closed_form, rowid_path in stream:
+        print 'PROCESSING:', rowid, rec_gl_closed_form, rowid_path
+        import pdb; pdb.set_trace()
+        sf = M.Globals.from_closed_form(rec_gl_closed_form)[gl_subpath]
+
+        for sf_rowid, value in sf.keys_with_decendants():  # TODO: smarter filtering
+            if sf_rowid == "0": 
+                continue # file header
+            if not valid_rowid(sf_rowid):
+                break
+            print '\t', sf_rowid, "%s%s)" % (sf.open_form, sf_rowid), rowid_path + [gl_subpath, sf_rowid]
+            yield sf_rowid, "%s%s)" % (sf.open_form, sf_rowid), rowid_path + [gl_subpath, sf_rowid]
+
 
 def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain=False):
     """
@@ -426,7 +437,7 @@ def _possible_indices(sargable, dd, parent_dd):
             indices[colname].append(index.name)
     return indices
 
-def _ranges_from_index_filters(index_filters, ascending):
+def _ranges_from_index_filters(index_filters, ascending=True):
     """
         Given a set of index filters, return a set of ranges.
 
@@ -614,6 +625,7 @@ def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0
         from a single parent, or we are searching for a parent using
         a multiple field such as SSN.
     """
+    ascending = True
     pipeline = None
 
     dd = dbsfile.dd
@@ -635,12 +647,17 @@ def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0
         label = '_rowid%d' % i
         if label in sargable:
             matched.append((parent_dds[i], sargable[label]))
-            del sargable[label]
         else:
-            break
+            matched.append((parent_dds[i], None))
 
     ranges = _ranges_from_index_filters(matched[0][1])
-    gl_prefix = matched[0][0].dd.m_open_form()
+    gl_prefix = matched[0][0].m_open_form()
     pipeline = file_order_traversal(gl_prefix, ranges=ranges, explain=explain)
+    for sf_dd, sf_filters in matched[1:]:
+        if sf_filters:
+            ranges = _ranges_from_index_filters(sf_filters)
+        else:
+            ranges = None
+        pipeline = subfile_traversal(pipeline, sf_dd, ranges=ranges, explain=explain)
 
     return pipeline

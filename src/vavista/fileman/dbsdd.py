@@ -980,7 +980,7 @@ class _DD(object):
                 parent_dd = self.parent_dd = DD(parent_fileid)
 
                 for fieldid, field in parent_dd.fields.items():
-                    if field.fmql_type == FT_SUBFILE and field._subfileid == fileid:
+                    if field.fmql_type == FT_SUBFILE and field.subfileid == fileid:
                         self.parent_fieldid = fieldid
                         break
 

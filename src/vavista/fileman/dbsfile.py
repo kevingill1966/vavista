@@ -594,7 +594,12 @@ class DBSFile(object):
                 yield message
         else:
             for rowid, gl_root, rowid_path in plan:
-                yield rowid, self.get(rowid)
+                if len(rowid_path) == 1:
+                    yield rowid, self.get(rowid)
+                else:
+                    # need a mechanism to retrieve these.
+                    import pdb; pdb.set_trace()
+                    yield rowid_path, self.get(rowid_path)
 
     def filter_row(self, _rowid, filters):
         """
