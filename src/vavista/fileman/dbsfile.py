@@ -318,7 +318,7 @@ class DBSFile(object):
         self.dd = dd
         self.internal = internal
         if fieldnames:
-            self.fieldids = [dd.attrs[n.lower()] for n in fieldnames]
+            self.fieldids = [dd.attrs[n.lower()] for n in fieldnames if not n.startswith("_rowid")]
             self._fieldnames = fieldnames
         else:
             self.fieldids = fieldids
@@ -597,9 +597,7 @@ class DBSFile(object):
                 if len(rowid_path) == 1:
                     yield rowid, self.get(rowid)
                 else:
-                    # need a mechanism to retrieve these.
-                    import pdb; pdb.set_trace()
-                    yield rowid_path, self.get(rowid_path)
+                    yield rowid_path[::2], self.get(rowid_path)
 
     def filter_row(self, _rowid, filters):
         """

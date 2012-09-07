@@ -176,7 +176,13 @@ class FilemandClient:
         for rowid, row in rows:
             if asdict:
                 row = dict(zip(fieldnames, row))
-                row['_rowid'] = rowid
+                if type(rowid) == list:
+                    rowid.reverse()
+                    row['_rowid'] = rowid[0]
+                    for i, rowidn in enumerate(rowid[1:]):
+                        row["_rowid%s" % (i+1)] = rowidn
+                else:
+                    row['_rowid'] = rowid
             yield row
 
     def dbsfile_count(self, handle, limit):

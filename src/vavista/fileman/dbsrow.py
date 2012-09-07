@@ -169,6 +169,25 @@ class DBSRow(object):
         if self._row_fdaid:
             M.Globals[self._row_fdaid].kill()
 
+    def _get_gl(self):
+        """return a global for the current _rowid"""
+        dd = self._dd
+        if type(self._rowid) == list:
+            path = []
+            path.append(dd)
+            while dd.parent_dd:
+                dd = dd.parent_dd
+                path.append(dd)
+
+            root_gl = dd.m_open_form() + "%s)" % self._rowid[0]
+            record = M.Globals.from_closed_form(root_gl)
+            for i in self._rowid[1:]:
+                record = record[i]
+            return record
+        else:
+            gl = dd.m_open_form() + "%s)" % self._rowid
+            return M.Globals.from_closed_form(gl)
+
     def raw_retrieve(self, cache=None):
         """
             The DBS retrieve function seems very slow so I am trying
@@ -197,8 +216,9 @@ class DBSRow(object):
         dd = self._dd
 
         # verify the global exists.
-        gl = dd.m_open_form() + "%s)" % self._rowid
-        gl_rec = M.Globals.from_closed_form(gl)
+        # gl = dd.m_open_form() + "%s)" % self._rowid
+        # gl_rec = M.Globals.from_closed_form(gl)
+        gl_rec = self._get_gl()
 
         if not gl_rec.exists():
             raise FilemanError("File %s, record %s, does not exist", dd.filename, self._rowid)

@@ -262,8 +262,6 @@ def subfile_traversal(stream, dd, ranges=None, ascending=True, explain=False):
         return
 
     for rowid, rec_gl_closed_form, rowid_path in stream:
-        print 'PROCESSING:', rowid, rec_gl_closed_form, rowid_path
-        import pdb; pdb.set_trace()
         sf = M.Globals.from_closed_form(rec_gl_closed_form)[gl_subpath]
 
         for sf_rowid, value in sf.keys_with_decendants():  # TODO: smarter filtering
@@ -271,7 +269,6 @@ def subfile_traversal(stream, dd, ranges=None, ascending=True, explain=False):
                 continue # file header
             if not valid_rowid(sf_rowid):
                 break
-            print '\t', sf_rowid, "%s%s)" % (sf.open_form, sf_rowid), rowid_path + [gl_subpath, sf_rowid]
             yield sf_rowid, "%s%s)" % (sf.open_form, sf_rowid), rowid_path + [gl_subpath, sf_rowid]
 
 

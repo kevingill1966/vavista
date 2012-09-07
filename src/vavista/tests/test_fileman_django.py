@@ -363,12 +363,15 @@ class TestDjango(unittest.TestCase):
         """
         pytest = self.dbs.get_file("5.01", fieldnames=["county", "abbreviation", "va_county_code", "catchment_code", "inactive_date"])
 
-        plan = list(pytest.query(order_by = [["_rowid1", "ASC"], ["_rowid", "ASC"]],
-                filters = [["_rowid1", "=", "6"]], explain=True))
-        print plan
-        result = pytest.query(order_by = [["_rowid1", "ASC"], ["_rowid", "ASC"]],
-                filters = [["_rowid1", "=", "6"]])
+        #plan = list(pytest.query(order_by = [["_rowid1", "ASC"], ["_rowid", "ASC"]],
+        #        filters = [["_rowid1", "=", "6"]], offset=0, explain=True))
+        #print plan
+        import pdb; pdb.set_trace()
+        result = pytest.query(order_by = [["_rowid1", "ASC"], ["_rowid", "ASC"]], filters = [["_rowid1", "=", "6"]], offset=0, limit=21)
         result = list(result)
+        # [{"order_by": [["_rowid", "ASC"], ["_rowid", "ASC"]], "limit": 21, "filters": [["_rowid", "=", "6"]], "offset": 0}]
+
+
 
 test_cases = (TestDjango, )
 
