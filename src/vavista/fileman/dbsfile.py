@@ -671,9 +671,25 @@ class DBSFile(object):
         record = DBSRow(self, self.dd, _rowid, internal=self.internal)
         return record.unlock()
 
-    def delete(self, _rowid):
-        record = DBSRow(self, self.dd, _rowid, internal=self.internal)
-        return record.unlock()
+    def delete(self, _rowid=None, filters=None, explain=False):
+        if _rowid:
+            record = DBSRow(self, self.dd, _rowid, internal=self.internal)
+            yield record.delete()
+        else:
+            gl_cache = {}
+            plan = make_plan(self, filters=filters, gl_cache=gl_cache, explain=explain)
+            if explain:
+                for message in plan:
+                    yield message
+            else:
+                for rowid, gl_root, rowid_path in plan:
+                    if len(rowid_path) == 1:
+                        record = DBSRow(self, self.dd, rowid, internal=self.internal)
+                        yield record.delete()
+                    else:
+                        record = DBSRow(self, self.dd, rowid_path, internal=self.internal)
+                        yield record.delete()
+
 
     def _file_header(self):
         """

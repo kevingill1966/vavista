@@ -404,7 +404,7 @@ class DBSRow(object):
         self._changed = False
         self._changed_fields = []
 
-    def _create_fda(self, values=None):
+    def _create_fda(self, values=None, include_nulls=True):
         """
             For the current record, copy all changed fields to an FDA record
             (Fileman Data Array), see programmer manual 3.2.3
@@ -479,7 +479,11 @@ class DBSRow(object):
                     else:
                         mvalue = field.pyto_external(value)
                     field.validate_insert(mvalue, self._internal)
-                    fda[fileid][iens][fieldid].value = mvalue
+                    if mvalue == '':
+                        if include_nulls:
+                            fda[fileid][iens][fieldid].value = '@'
+                    else:
+                        fda[fileid][iens][fieldid].value = mvalue
                     el_count += 1
         else:
             for fieldid in self._changed_fields:
@@ -494,13 +498,15 @@ class DBSRow(object):
     def insert(self, values=None):
         """
             Create a new record. Values is a dictionary containing the values.
+
+            TODO: Inserts to the state file are prohibited. How is this implemented.
         """
         M.Globals["ERR"].kill()
-
-        # Create an FDA format array for fileman
-        fdaid = self._create_fda(values)
         ienid = "ien%s" % id(self)
         M.Globals[ienid].kill()
+
+        # Create an FDA format array for fileman
+        fdaid = self._create_fda(values, include_nulls=False)
 
         # Flags:
         # E - use external formats

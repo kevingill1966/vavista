@@ -55,8 +55,8 @@ class DBSFileRemote:
     def unlock(self, _rowid):
         return self.remote.dbsfile_unlock(self.handle, _rowid=_rowid)
 
-    def delete(self, _rowid):
-        return self.remote.dbsfile_delete(self.handle, _rowid=_rowid)
+    def delete(self, _rowid=None, filters=None):
+        return self.remote.dbsfile_delete(self.handle, _rowid=_rowid, filters=filters)
 
     def traverser(self, index, from_value=None, to_value=None, ascending=True, from_rule=None, to_rule=None,
             raw=False, limit=100, offset=None, asdict=False, filters=None, order_by=None):

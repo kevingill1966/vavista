@@ -154,9 +154,9 @@ class FilemandClient:
         return self._mk_request("dbsfile_unlock", handle=handle,
             data=dict(_rowid=_rowid))
 
-    def dbsfile_delete(self, handle, _rowid):
+    def dbsfile_delete(self, handle, _rowid, filters):
         return self._mk_request("dbsfile_delete", handle=handle,
-            data=dict(_rowid=_rowid))
+            data=dict(filters=filters, _rowid=_rowid))
 
     def dbsfile_traverser(self, handle, index, from_value, to_value, ascending,
             from_rule, to_rule, raw, limit, offset, asdict, filters, order_by):
@@ -177,10 +177,8 @@ class FilemandClient:
             if asdict:
                 row = dict(zip(fieldnames, row))
                 if type(rowid) == list:
-                    rowid.reverse()
-                    row['_rowid'] = rowid[0]
-                    for i, rowidn in enumerate(rowid[1:]):
-                        row["_rowid%s" % (i+1)] = rowidn
+                    row['_rowid'] = ",".join(rowid)
+                    row['_parentid'] = ",".join(rowid[:-1])
                 else:
                     row['_rowid'] = rowid
             yield row
@@ -357,7 +355,7 @@ class FilemandServer:
 
     def cmd_dbsfile_delete(self, handle, request):
         dbsfile = self.handles[long(handle)]
-        return dbsfile.delete(_rowid=request['_rowid'])
+        return list(dbsfile.delete(_rowid=request['_rowid'], filters=request['filters']))
 
     # I want to pass in:
     # order by

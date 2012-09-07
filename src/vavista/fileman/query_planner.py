@@ -68,7 +68,7 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
     fields = []
 
     for (fieldname, direction) in order_by:
-        if fieldname.startswith('_rowid'):
+        if fieldname in ('_rowid', '_parentid'):
             fields.append(fieldname)
         else:
             fieldid = dd.attrs[fieldname]
@@ -128,6 +128,8 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
             except:
                 pass
 
+            comparator = comparator.lower()
+
             if comparator == '='  and not (db_value == value):
                 emit = False
                 break
@@ -152,7 +154,12 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
         if emit:
             yield rowid, rec_gl_closed_form, rowid_path
 
-def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
+def null_traversal(explain=False):
+    if explain:
+        yield "null_traversal"
+        return
+
+def file_order_traversal(gl, ranges=None, ascending=True, sf_path=[], explain=False):
     """
         Originate records by traversing the file in file order (i.e. no index)
     """
@@ -245,7 +252,8 @@ def file_order_traversal(gl, ranges=None, ascending=True, explain=False):
                 if f_lastrowid < to_rowid and to_rule == ">=":
                     break
 
-        yield (lastrowid, "%s%s)" % (gl, lastrowid), [lastrowid])
+        # If this is a subfile, I need to return the full path.
+        yield (lastrowid, "%s%s)" % (gl, lastrowid), sf_path + [lastrowid])
 
 def subfile_traversal(stream, dd, ranges=None, ascending=True, explain=False):
     """
@@ -272,7 +280,7 @@ def subfile_traversal(stream, dd, ranges=None, ascending=True, explain=False):
             yield sf_rowid, "%s%s)" % (sf.open_form, sf_rowid), rowid_path + [gl_subpath, sf_rowid]
 
 
-def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain=False):
+def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, sf_path=[], explain=False):
     """
         A generator which will traverse an index.
         The iterator should yield rowids.
@@ -381,7 +389,7 @@ def index_order_traversal(gl_prefix, index, ranges=None, ascending=True, explain
             lastrowid = None
             continue
 
-        yield (lastrowid, "%s%s)" % (gl_prefix, lastrowid), [lastrowid])
+        yield (lastrowid, "%s%s)" % (gl_prefix, lastrowid), sf_path + [lastrowid])
 
 #------------------------------------------------------------------------------------------------
 
@@ -404,7 +412,7 @@ def _filters_to_sargable(filters):
     """
     sargable = {}
     for colname, comparator, value in filters:
-        if (comparator in ["<", "<=", "=", ">=", ">"]) or (comparator in ["in"] and len(value) == 1):
+        if (comparator in ["<", "<=", "=", ">=", ">"]) or (comparator.lower() in ["in"] and len(value) == 1):
             if colname not in sargable.keys():
                 sargable[colname] = []
             sargable[colname].append((comparator, value))
@@ -447,6 +455,7 @@ def _ranges_from_index_filters(index_filters, ascending=True):
     lb_value, lb_rule, ub_value, ub_rule = None, None, None, None
 
     for comparator, value in index_filters:
+        comparator = comparator.lower()
         if comparator in [">", ">=", "=", 'in']:
             # TODO: comparason based on mumps rules, not python rules
             if lb_value is None or lb_value < value:
@@ -613,6 +622,26 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
 
     return pipeline
 
+def _common_path(from_rowid, to_rowid):
+    """
+        When traversing to sub-files, you can find records
+        based on a range. This function, identifies the 
+        common path between the start and the end range.
+
+        The common path can be navigated too, before a traversal
+        is required.
+
+    """
+    from_parts = from_rowid.split(",")
+    to_parts = to_rowid.split(",")
+    shared = []
+    while len(from_parts) > 0 and len(to_parts) > 0:
+        f, t = from_parts.pop(), to_parts.pop()
+        if f != t:
+            return shared, [f] + from_parts, [t] + to_parts
+        shared.insert(0, f)
+    return shared, [], []
+
 def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cache=None, explain=False):
     """
         Sub-files are of an arbitrary depth. 
@@ -630,31 +659,53 @@ def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0
     # Construct a list of the parents.
     parent_dds = [dbsfile.dd]
     while dd.parent_dd:
-        parent_dds.append(dd.parent_dd)
+        parent_dds.insert(0, dd.parent_dd)
         dd = dd.parent_dd
 
     dd = dbsfile.dd
-
-    # Normal access will be of the order [_rowid1=2 and _rowid2=3 order by _rowid]
-    # Construct a list of selectors at each depth.
     sargable = _filters_to_sargable(filters)
 
-    matched = []
-    for i in range(len(parent_dds)-1, -1, -1):
-        label = '_rowid%d' % i
-        if label in sargable:
-            matched.append((parent_dds[i], sargable[label]))
-        else:
-            matched.append((parent_dds[i], None))
+    # normally sargable will include a _parentid, which identifies
+    # the parent record.
+    assert '_parentid' in sargable
+    parent_rule = sargable['_parentid']
+    ranges = _ranges_from_index_filters(parent_rule)
+    gl_prefix = dd.parent_dd.m_open_form()
 
-    ranges = _ranges_from_index_filters(matched[0][1])
-    gl_prefix = matched[0][0].m_open_form()
-    pipeline = file_order_traversal(gl_prefix, ranges=ranges, explain=explain)
-    for sf_dd, sf_filters in matched[1:]:
-        if sf_filters:
-            ranges = _ranges_from_index_filters(sf_filters)
+    # need to study the range and get the common root. Can only differ on 
+    # the last part.
+    if ranges:
+        r = ranges[0]
+        from_rowid, to_rowid = r['from_value'], r['to_value']
+        shared, from_rowid, to_rowid = _common_path(from_rowid, to_rowid)
+        assert len(from_rowid) <= 1
+        assert len(to_rowid) <= 1
+        assert len(from_rowid) == len(to_rowid)
+        if shared and len(shared) == 1 and shared[0] == '':
+            pipeline = null_traversal(explain=explain)
         else:
-            ranges = None
-        pipeline = subfile_traversal(pipeline, sf_dd, ranges=ranges, explain=explain)
+            sf_rowid_path = []
+            gl_prefix = parent_dds[0].m_open_form()
+            for sf_dd, rowid in zip(parent_dds[1:], shared):
+                parent_field = sf_dd.parent_dd.fields[sf_dd.parent_fieldid]
+                sf_path = parent_field.storage.split(";")[0]
+
+            gl_prefix = gl_prefix + rowid + "," + sf_path + ","
+            sf_rowid_path.append(rowid)
+            sf_rowid_path.append(sf_path)
+
+            if from_rowid and to_rowid:
+                r['from_value'], r['to_value'] = from_rowid, to_rowid
+            else:
+                ranges = None
+
+            pipeline = file_order_traversal(gl_prefix, ranges=ranges, sf_path = sf_rowid_path, explain=explain)
+
+        # Now, how far down are we - do we need to add a subfile traverser?
+
+    # Get the parent record
+    else:
+        pipeline = file_order_traversal(gl_prefix, ranges=ranges, explain=explain)
+        pipeline = subfile_traversal(pipeline, dd, explain=explain)
 
     return pipeline
