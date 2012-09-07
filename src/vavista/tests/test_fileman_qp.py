@@ -1,5 +1,18 @@
 """
     Test the query planner
+
+    Unfortunately, now that sub-files are limping along, there is a major
+    refactoring that needs to be considered. The low-level library needs to
+    be reorganised about...
+
+    traversal of files and subfiles using itemids where itemids are 
+    comma separated lists of records.
+
+    traversal of indices needs to be similarly considered with traversal
+    of subfile indexes being supported.
+
+    The subfile should be considered a file with peculiar
+    storage rather than be different category of object from a file.
 """
 
 import unittest

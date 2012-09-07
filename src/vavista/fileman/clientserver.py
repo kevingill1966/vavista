@@ -245,7 +245,12 @@ class FilemandServer:
                     bufsize = length - recv_len
                     if bufsize > 4096:
                         bufsize = 4096
-                    buffer = self.socket.recv(4096)
+                    try:
+                        buffer = self.socket.recv(4096)
+                    except socket.error, e:
+                        if e.errno != 4:
+                            raise e
+                        buffer = ""
                     recv_buffer.append(buffer)
                     recv_len += len(buffer)
                 recv_buffer = ''.join(recv_buffer)
@@ -276,7 +281,16 @@ class FilemandServer:
                     response = {"__exception__": "FilemanError", "message": e.message()}
 
                 if response == None:
-                    self.socket.sendall(struct.pack("!L", 0))
+                    while 1:
+                        # I am putting this in a loop because interrupts are
+                        # happening GT.M being clever.
+                        try:
+                            self.socket.sendall(struct.pack("!L", 0))
+                        except socket.error, e:
+                            if e.errno != 4:
+                                raise e
+                            continue
+                        break
                 else:
                     response = json.dumps(response, default=json_encoder)
                     length = struct.pack("!L", len(response))
