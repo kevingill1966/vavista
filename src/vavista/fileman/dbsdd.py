@@ -459,7 +459,7 @@ class FieldNumeric(Field):
         return flags and flags[0] == 'N'
 
     def pyfrom_internal(self, s):
-        if s == "":
+        if s == None or s == "":
             s = 0
         if self.format_info[1]:
             return float(s)
@@ -607,10 +607,9 @@ class FieldWP(Field):
         gbl, piece =  storage.split(';')
         wp_file = gl_rec[gbl]
 
-        # Ignore the header for now.
-
         for (recno, value) in wp_file.keys_with_decendants():
-            rv.append(wp_file[recno][0].value)
+            if recno > '0': # can have odd header values.
+                rv.append(wp_file[recno][0].value)
 
         return rv
 
