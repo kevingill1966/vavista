@@ -7,6 +7,26 @@
     and aggregator or a simple count call.
 
     TODO: Explain
+
+    A query planner takes the SQL statement and coverts it to
+    a tree. The implementation here does not support joins or
+    unions or ors so the tree becomes a pipeline.
+
+    terminology:
+
+        relation - this is the table
+        tuple - this is the row
+
+    the optmiser must look at all the filters and choose a 
+    strategy for pulling data from the storage, i.e. choose the
+    best index. 
+
+    the data is fed through a pipeline to apply all of the 
+    appropriate filters to it. The output is sorted.
+
+    This code does not handle functions. It is built as required
+    rather than trying to build an optimiser.
+
 """
 
 import logging

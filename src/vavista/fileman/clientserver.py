@@ -53,10 +53,21 @@ def json_decoder(dct):
 
 class FilemandClient:
     socket = None
+    connected = False
+    _connect_data = None
+
     def __init__(self, host, port):
-        self.socket = clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        clientsocket.connect((host, port))
+        self.host = host
+        self.port = port
+        self._reconnect()
         logger.info("FilemandClient initialised")
+
+    def _reconnect(self):
+        self.socket = clientsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        clientsocket.connect((self.host, self.port))
+        self.connected = True
+        if self._connect_data:
+            self.connect(**self._connect_data)
 
     def _mk_request(self, request_id, handle=None, data=None):
         """
@@ -64,63 +75,78 @@ class FilemandClient:
             Wait for the response
         """
         logger.debug("request_id:[%s], handle:[%s], data:[%s]", request_id, handle, data)
-        if handle == None:
-            handle = ""
-        else:
-            handle = str(handle)
-        if data == None:
-            data = ""
-        else:
-            data = json.dumps(data, default=json_encoder)
 
-        payload_len = len(request_id) + len(handle) + len(data) + 2
+        if not self.connected:
+            # TODO: handles are now a mess
+            self._reconnect()
 
-        header = struct.pack("!L", payload_len) + '%s:%s:' % (request_id, handle)
-        self.socket.sendall(header)
-        if data != None:
-            self.socket.sendall(data)
+        try:
+            if handle == None:
+                handle = ""
+            else:
+                handle = str(handle)
+            if data == None:
+                data = ""
+            else:
+                data = json.dumps(data, default=json_encoder)
 
-        length_message = self.socket.recv(4)
-        if len(length_message) == 0:
-            raise Exception("Error, Server terminated the conversation")
+            payload_len = len(request_id) + len(handle) + len(data) + 2
 
-        assert len(length_message) == 4, "Error too few bytes returned from read"
-        length = struct.unpack("!L", length_message)[0]
+            header = struct.pack("!L", payload_len) + '%s:%s:' % (request_id, handle)
+            self.socket.sendall(header)
+            if data != None:
+                self.socket.sendall(data)
 
-        if length == 0:
-            return None
+            length_message = self.socket.recv(4)
+            if len(length_message) == 0:
+                raise Exception("Error, Server terminated the conversation")
 
-        recv_len  = 0
-        recv_buffer = []
-        while recv_len < length:
-            bufsize = length - recv_len
-            if bufsize > 4096:
-                bufsize = 4096
-            buffer = self.socket.recv(4096)
-            recv_buffer.append(buffer)
-            recv_len += len(buffer)
+            assert len(length_message) == 4, "Error too few bytes returned from read"
+            length = struct.unpack("!L", length_message)[0]
 
-        # To propagate exception from the server to the client.
-        # The exception name is in the __exception__ value in the dict.
-        # raised by the json decoder
+            if length == 0:
+                return None
 
-        if length:
-            recv_buffer = ''.join(recv_buffer)
+            recv_len  = 0
+            recv_buffer = []
+            while recv_len < length:
+                bufsize = length - recv_len
+                if bufsize > 4096:
+                    bufsize = 4096
+                buffer = self.socket.recv(4096)
+                recv_buffer.append(buffer)
+                recv_len += len(buffer)
+
+            # To propagate exception from the server to the client.
+            # The exception name is in the __exception__ value in the dict.
+            # raised by the json decoder
+
+            if length:
+                recv_buffer = ''.join(recv_buffer)
+                try:
+                    response = json.loads(recv_buffer, object_hook=json_decoder)
+                except:
+                    print recv_buffer
+                    raise
+                return response
+        except Exception, e:
             try:
-                response = json.loads(recv_buffer, object_hook=json_decoder)
+                self.socket.shutdown(1)
+                self.socket.close()
             except:
-                print recv_buffer
-                raise
-            return response
+                pass
+            self.connected = False
+            raise
 
     def connect(self, DUZ=None, DT=None, isProgrammer=None):
-        return self._mk_request("connect", data = dict(DUZ=None, DT=None, isProgrammer=None))
+        self._connect_data = dict(DUZ=DUZ, DT=DT, isProgrammer=isProgrammer)
+        return self._mk_request("connect", data = dict(DUZ=DUZ, DT=DT, isProgrammer=isProgrammer))
 
     def list_files(self):
         return self._mk_request("list_files")
 
-    def get_file(self, name=None, internal=True, fieldnames=None):
-        return self._mk_request("get_file", data = dict(name=name, internal=internal, fieldnames=fieldnames))
+    def get_file(self, name=None, internal=True, fieldnames=None, fieldids=None):
+        return self._mk_request("get_file", data = dict(name=name, internal=internal, fieldnames=fieldnames, fieldids=fieldids))
 
     def dbsfile_description(self, handle):
         from shared import STRING, ROWID
@@ -187,9 +213,13 @@ class FilemandClient:
         return self._mk_request("dbsfile_count", handle=handle,
             data=dict(limit=limit))
 
+    def dbsfile_fileid(self, handle):
+        return self._mk_request("dbsfile_fileid", handle=handle)
+
     def __del__(self):
-        self.socket.shutdown(1)
-        self.socket.close()
+        if self.connected:
+            self.socket.shutdown(1)
+            self.socket.close()
 
 class FilemandServer:
     """
@@ -325,7 +355,7 @@ class FilemandServer:
         return list(self.dbs.list_files())
 
     def cmd_get_file(self, handle, request):
-        dbsfile = self.dbs.get_file(request['name'], internal=request['internal'], fieldnames=request['fieldnames'])
+        dbsfile = self.dbs.get_file(request['name'], internal=request['internal'], fieldnames=request['fieldnames'], fieldids=request['fieldids'])
         handle = id(dbsfile)
         self.handles[handle] = dbsfile
         return {'handle': str(handle)}
@@ -404,3 +434,6 @@ class FilemandServer:
         logger.debug("returning %d rows", len(rv))
         return (dbsfile.fieldnames(), rv)
 
+    def cmd_dbsfile_fileid(self, handle, request=None):
+        dbsfile = self.handles[long(handle)]
+        return dbsfile.fileid

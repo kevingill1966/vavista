@@ -4,6 +4,10 @@ import logging
 
 logger = logging.getLogger("vavista.M")
 
+# Switched from utf to this
+#CODE_PAGE='windows-1252'
+CODE_PAGE='latin-1'
+
 # If the GTMCI environment variable is not configured, then set it to
 # point to the callin file. Otherwise assume that the user knows what
 # they are doing.
@@ -96,7 +100,7 @@ def safe_str(s):
     """
         Return string version of s as used as a variable (s0) in a mumps expression,
     """
-    return unicode(s).encode('utf-8')
+    return unicode(s).encode(CODE_PAGE)
 
 def as_mvalue(s):
     """
@@ -136,7 +140,7 @@ def proc(procedure, *inparams):
             var = "s%d" % iStr
             iStr += 1
             if type(p) == unicode:
-                p = p.encode('utf-8')
+                p = p.encode(CODE_PAGE)
         elif type(v) in [int, long]:
             var = "l%d" % iInt
             iInt += 1
@@ -228,7 +232,7 @@ class Global(object):
         # I am encoding this in UTF-8 because pdb uses this to display variables
         # which causes unicode errors with non-ASCII values.
         return "<%s.%s: %s%s=%s >" % (self.__class__.__module__, self.__class__.__name__, 
-            self.path[0], self.path[1:], unicode(self).encode('utf-8'))
+            self.path[0], self.path[1:], unicode(self).encode(CODE_PAGE))
 
     def get_value(self):
         if len(self.path) == 1:
@@ -241,7 +245,7 @@ class Global(object):
             return None
         if s1:
             try:
-                s1 = s1.decode('utf-8')
+                s1 = s1.decode(CODE_PAGE)
             except:
                 import pdb; pdb.post_mortem()
                 logger.exception("Global.get_value (%s) Unicode decode error on [%s]", s0, s1)
@@ -262,7 +266,7 @@ class Global(object):
             s1 = ""
         elif type(s1) == unicode:
             try:
-                s1 = s1.encode('utf-8')
+                s1 = s1.encode(CODE_PAGE)
             except:
                 logger.exception("Global.set_value (%s) Unicode decode error on [%s]", s0, s1)
                 raise

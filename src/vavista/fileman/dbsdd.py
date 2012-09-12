@@ -442,7 +442,10 @@ class FieldNumeric(Field):
         if fieldinfo[1].find("J") != -1:
             ts = fieldinfo[1].split("J",1)[1]
             ts = ts.split(",")
-            ts0 = int(ts[0])
+            try:
+                ts0 = int(ts[0])
+            except:
+                ts0 = 0
             ts1 = []
             if len(ts) > 1:
                 for c in ts[1]:
@@ -548,6 +551,7 @@ class FieldWP(Field):
         ('^DD(9999907.02,.01,0)', 'wp2^WL^^0;1^Q'),  # word-wrap
     """
     fmql_type = FT_WP
+    wrapinfo = None
 
     @classmethod
     def c_isa(cls, flags):
@@ -561,8 +565,9 @@ class FieldWP(Field):
         " Extract the wrap specification "
         super(FieldWP, self).init_type(fieldinfo)
         subfileid = leading_number(strip_leading_chars(fieldinfo[1]))
-        fs = M.Globals["^DD"][subfileid][".01"][0].value
-        self.wrapinfo = fs.split("^")[1]
+        if M.Globals["^DD"][subfileid].exists():
+            fs = M.Globals["^DD"][subfileid][".01"][0].value
+            self.wrapinfo = fs.split("^")[1]
 
     def pyfrom_internal(self, s):
         if s == "":
@@ -1002,7 +1007,7 @@ class _DD(object):
             e.g. FILE = 1 - result is a string.
         """
         if self._fileid is None:
-            rv = M.mexec('''set s1=$order(^DIC("B",s0,0))''', str(self.filename), M.INOUT(""))[0]
+            rv = M.mexec('''set s1=$order(^DIC("B",s0,0))''', str(self.filename[:30]), M.INOUT(""))[0]
             if rv != '':
                 self._fileid = rv
         return self._fileid
@@ -1217,6 +1222,12 @@ class _DD(object):
             
         fields = []
         for fieldid in fieldids:
+            field = self.fields[fieldid]
+            if field.fmql_type == FT_SUBFILE and field.subfileid == self.fileid:
+                #raise FilemanError("Database Corrupt - subfile %s contains self" % self.fileid)
+                print "Database Corrupt - subfile %s contains self" % self.fileid
+                continue
+
             fi = self.fields[fieldid].describe()
             fi['fieldhelp2'] = self.fieldhelp2(fieldid)
             fields.append(fi)

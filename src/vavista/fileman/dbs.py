@@ -22,10 +22,11 @@ class DBSFileRemote:
     """
     _description = None
     _fm_description = None
+    _fileid = None
 
-    def __init__(self, remote, name, internal=True, fieldnames=None):
+    def __init__(self, remote, name, internal=True, fieldnames=None, fieldids=None):
         self.remote = remote
-        rv = self.remote.get_file(name=name, internal=internal, fieldnames=fieldnames)
+        rv = self.remote.get_file(name=name, internal=internal, fieldnames=fieldnames, fieldids=fieldids)
         self.handle = rv['handle']
 
     @property
@@ -33,6 +34,12 @@ class DBSFileRemote:
         if self._description is None:
             self._description = self.remote.dbsfile_description(self.handle)
         return self._description
+
+    @property
+    def fileid(self):
+        if self._fileid is None:
+            self._fileid = self.remote.dbsfile_fileid(self.handle)
+        return self._fileid
 
     @property
     def fm_description(self):
@@ -121,7 +128,7 @@ class DBS(object):
             e.g. FILE = 1 - result is a string.
         """
         if self.remote:
-            return DBSFileRemote(self.remote, name, internal=internal, fieldnames=fieldnames)
+            return DBSFileRemote(self.remote, name, internal=internal, fieldnames=fieldnames, fieldids=fieldids)
 
         dd = DD(name)
         if dd.fileid is None:

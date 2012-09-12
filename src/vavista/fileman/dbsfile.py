@@ -330,6 +330,10 @@ class DBSFile(object):
     def __str__(self):
         return "DBSFILE %s (%s)" % (self.dd.filename, self.dd.fileid)
 
+    @property
+    def fileid(self):
+        return self.dd.fileid
+
     def fieldnames(self):
         if self._fieldnames is None:
             # TODO: if only have fieldids, have to look them up
