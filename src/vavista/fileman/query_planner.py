@@ -87,11 +87,10 @@ def sorter(stream, order_by, dd, gl_cache=None, explain=False):
     ascending = True
     fields = []
 
-    for (fieldname, direction) in order_by:
-        if fieldname in ('_rowid', '_parentid'):
-            fields.append(fieldname)
+    for (fieldid, direction) in order_by:
+        if fieldid in ('_rowid', '_parentid'):
+            fields.append(fieldid)
         else:
-            fieldid = dd.attrs[fieldname]
             field = dd.fields[fieldid]
             fields.append(field)
         if direction == 'ASC':
@@ -131,12 +130,12 @@ def apply_filters(stream, dbsfile, filters, gl_cache, explain=False):
     for rowid, rec_gl_closed_form, rowid_path in stream:
         rec = M.Globals.from_closed_form(rec_gl_closed_form)
         emit = True
-        for colname, comparator, value in filters:
+        for fieldid, comparator, value in filters:
             ## Need mumps comparisons here - numerics versus non-numerics
-            if colname == '_rowid':
+            if fieldid == '_rowid':
                 db_value = rowid
             else:
-                field = dbsfile._dd_field_byname(colname)
+                field = dbsfile.dd.fields[fieldid]
                 db_value = field.retrieve(rec, gl_cache)
 
             try:
@@ -431,11 +430,11 @@ def _filters_to_sargable(filters):
         the sargable rules referring to it.
     """
     sargable = {}
-    for colname, comparator, value in filters:
+    for fieldid, comparator, value in filters:
         if (comparator in ["<", "<=", "=", ">=", ">"]) or (comparator.lower() in ["in"] and len(value) == 1):
-            if colname not in sargable.keys():
-                sargable[colname] = []
-            sargable[colname].append((comparator, value))
+            if fieldid not in sargable.keys():
+                sargable[fieldid] = []
+            sargable[fieldid].append((comparator, value))
     return sargable
 
 def _possible_indices(sargable, dd, parent_dd):
@@ -445,8 +444,6 @@ def _possible_indices(sargable, dd, parent_dd):
     """
     indices = {}
 
-    # There is a mis-match here colnames versus fieldids
-    sargable_fieldids = dict([(dd.attrs[colname], colname) for colname in sargable.keys()])
     if parent_dd:
         # This is a sub-file - indices are on the parent
         index_list = parent_dd.indices
@@ -455,11 +452,11 @@ def _possible_indices(sargable, dd, parent_dd):
     for index in index_list:
         if index.table != dd.fileid:   # indexes can be on embedded models
             continue
-        if len(index.columns) == 1 and index.columns[0] in sargable_fieldids.keys():
-            colname = sargable_fieldids[index.columns[0]]
-            if colname not in indices:
-                indices[colname] = []
-            indices[colname].append(index.name)
+        if len(index.columns) == 1 and index.columns[0] in sargable.keys():
+            col_fieldid = index.columns[0]
+            if col_fieldid not in indices:
+                indices[col_fieldid] = []
+            indices[col_fieldid].append(index.name)
     return indices
 
 def _ranges_from_index_filters(index_filters, ascending=True):
@@ -564,8 +561,7 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
 
         else:
             # TODO: Subfiles
-            order_col = order_by[0][0]
-            order_fieldid = dd.attrs[order_col]
+            order_fieldid = order_by[0][0]
             index = _index_for_column(dd, order_fieldid)
             if index:
                 pipeline = index_order_traversal(gl_prefix, index, ascending = (order_by[0][1] == 'ASC'), explain=explain)
@@ -587,18 +583,18 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
             #    choose the preferred index (sargable + orderable, fileorder, first index)
             if len(sargable.keys()) == 1 and sargable.keys()[0] == '_rowid':
                 # direct record retrieve - indexes not necessary
-                colname = "_rowid"
+                fieldid = "_rowid"
                 index = None
 
             else:
                 indices =  _possible_indices(sargable, dd, None)
                 if len(indices) == 0:
-                    colname = None
+                    fieldid = None
                     index = None
 
                 elif len(indices) == 1:
-                    colname = indices.keys()[0]
-                    index = indices[colname][0]  # There can be more than one - why?
+                    fieldid = indices.keys()[0]
+                    index = indices[fieldid][0]  # There can be more than one - why?
 
                 else:
                     # More than one option. How to choose the best?
@@ -606,20 +602,20 @@ def make_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0, gl_cac
                     # or '=' has precendence over range?
 
                     # Choose first for now
-                    colname = indices.keys()[0]
-                    index = indices[colname][0]
+                    fieldid = indices.keys()[0]
+                    index = indices[fieldid][0]
 
             # At this point we have choosen an index. Have to choose the 
             # traversal rules, and remove the index from the filters
-            if colname:
-                index_filters = sargable[colname]
+            if fieldid:
+                index_filters = sargable[fieldid]
             else:
                 index_filters = []
 
             # Ignoring sub-order-by rules
             if index == None and order_by and order_by[0][0] == '_rowid':
                 ascending = (order_by[0][1] == 'ASC')
-            elif order_by and order_by[0][0].lower() == colname.lower():
+            elif order_by and order_by[0][0] == fieldid:
                 ascending = (order_by[0][1] == 'ASC')
             else:
                 ascending = True
@@ -709,10 +705,9 @@ def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0
             for sf_dd, rowid in zip(parent_dds[1:], shared):
                 parent_field = sf_dd.parent_dd.fields[sf_dd.parent_fieldid]
                 sf_path = parent_field.storage.split(";")[0]
-
-            gl_prefix = gl_prefix + rowid + "," + sf_path + ","
-            sf_rowid_path.append(rowid)
-            sf_rowid_path.append(sf_path)
+                gl_prefix = gl_prefix + rowid + "," + sf_path + ","
+                sf_rowid_path.append(rowid)
+                sf_rowid_path.append(sf_path)
 
             if from_rowid and to_rowid:
                 r['from_value'], r['to_value'] = from_rowid, to_rowid

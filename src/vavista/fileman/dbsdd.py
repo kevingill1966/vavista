@@ -385,6 +385,10 @@ class FieldDatetime(Field):
                 secs = 0
             d = datetime.datetime(yr,mth,day,hr,mins,secs)
         else:
+            if mth == 0:  ## later work out a better scheme - just a year specified
+                mth = 1
+            if day == 0:
+                day = 1
             d = datetime.date(yr,mth,day)
         return d
 
@@ -856,7 +860,7 @@ class FieldSubfile(Field):
     @property
     def dd(self):
         if self._dd is None:
-            self._dd = DD(self.subfileid)
+            self._dd = DD(self.subfileid,  parent_fieldid=self.fieldid)
         return self._dd
 
     @property
@@ -1165,7 +1169,8 @@ class _DD(object):
                     for klass in FIELD_TYPES:
                         if klass.isa(ftype):
                             finst = f[fieldid] = klass(fieldid, label, info)
-                            klass.fileid = self.fileid
+                            finst.fileid = self.fileid
+                            finst.ownerdd = self
                             attrs[label] = fieldid
                             break
                     if finst is None:
@@ -1259,16 +1264,42 @@ class _DD(object):
                 txt.append(v)
         return '\n'.join(txt)
 
-def DD(filename, parent_dd=None, parent_fieldid=None, cache={}):
+def DD(filename=None, parent_dd=None, parent_fieldid=None, subfile_path=None, cache={}):
     """
         Simple mechanism to cache DD objects.
+
+        There is a hack here because I found out late in the day that DD records
+        can be shared among subfiles. I pass down a full path to the subfile
+        from Django.
     """
-    dd = cache.get(filename)
+    if filename:
+        dd = cache.get(filename)
+    elif subfile_path:
+        dd = cache.get(subfile_path)
+
+    if subfile_path:
+        # work out the parent_dd, parent_fieldid
+        path = subfile_path.split('::')
+        parent_dd = DD(path[0])
+        parent_fieldid = path[-1]
+        for part in path[1:-1]:
+            # intermediate subfiles
+            field = parent_dd.fields[part]
+            parent_dd = field.dd
+
+        filename = parent_dd.fields[parent_fieldid].subfileid
 
     if dd is None or (parent_dd and parent_fieldid and (dd.parent_dd != parent_dd or parent_fieldid != dd.parent_fieldid)):
         file_dd = _DD(filename, parent_dd=parent_dd, parent_fieldid=parent_fieldid)
-        cache[file_dd.fileid] = file_dd
-        if file_dd.filename:
-            cache[file_dd.filename] = file_dd
-    return cache[filename]
+        if subfile_path:
+            cache[subfile_path] = file_dd
+        else:
+            cache[file_dd.fileid] = file_dd
+            if file_dd.filename:
+                cache[file_dd.filename] = file_dd
+
+    if subfile_path:
+        return cache[subfile_path]
+    else:
+        return cache[filename]
     

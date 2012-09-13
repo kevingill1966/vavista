@@ -145,8 +145,10 @@ class TestDjango(unittest.TestCase):
         """
             One rule - based on rowid
         """
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
+        pytest = self.dbs.get_file("PYTEST20", fieldids=[
+            '.01',  # Name
+            '1',    # Textline_One
+            '2'])   # textline2
 
         cursor = pytest.query(filters=[['_rowid', '=', '4']])
         result = list(cursor)
@@ -195,44 +197,43 @@ class TestDjango(unittest.TestCase):
         """
             One rule based on an indexed column
         """
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
+        pytest = self.dbs.get_file("PYTEST20", fieldids=['.01', '1', '2'])
 
-        cursor = pytest.query(filters=[['name', '=', 'ROW4']])
+        cursor = pytest.query(filters=[['.01', '=', 'ROW4']])
         result = list(cursor)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
         self.assertEqual(result[0][1][0], 'ROW4')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['name', '=', 'ROW4']], explain=True))
+        plan = list(pytest.query(filters=[['.01', '=', 'ROW4']], explain=True))
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X <= 'ROW4'"), -1)
         self.assertNotEquals(plan[0].find("index=B"), -1)
 
-        cursor = pytest.query(filters=[['name', '>=', 'ROW4']])
+        cursor = pytest.query(filters=[['.01', '>=', 'ROW4']])
         result = list(cursor)
         self.assertEqual(len(result), 7)
         self.assertEqual(result[0][0], '4')
         self.assertEqual(result[0][1][0], 'ROW4')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['name', '>=', 'ROW4']], explain=True))
+        plan = list(pytest.query(filters=[['.01', '>=', 'ROW4']], explain=True))
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X >= 'ROW4' AND X None 'None'"), -1)
         self.assertNotEquals(plan[0].find("index=B"), -1)
 
-        cursor = pytest.query(filters=[['name', 'in', ['ROW4']]])
+        cursor = pytest.query(filters=[['.01', 'in', ['ROW4']]])
         result = list(cursor)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], '4')
         self.assertEqual(result[0][1][0], 'ROW4')
 
-        plan = list(pytest.query(filters=[['name', 'in', ['ROW4']]], explain=True))
+        plan = list(pytest.query(filters=[['.01', 'in', ['ROW4']]], explain=True))
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
@@ -243,10 +244,9 @@ class TestDjango(unittest.TestCase):
         """
             Two rules based on an indexed column
         """
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
+        pytest = self.dbs.get_file("PYTEST20", fieldids=['.01', '1', '2'])
 
-        cursor = pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']])
+        cursor = pytest.query(filters=[['.01', '>=', 'ROW3'], ['.01', '<=', 'ROW6']])
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][1][0], 'ROW3')
@@ -255,7 +255,7 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[3][1][0], 'ROW6')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], explain=True))
+        plan = list(pytest.query(filters=[['.01', '>=', 'ROW3'], ['.01', '<=', 'ROW6']], explain=True))
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
@@ -263,7 +263,7 @@ class TestDjango(unittest.TestCase):
         self.assertNotEquals(plan[0].find("index=B"), -1)
 
 
-        cursor = pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], order_by=[["name", "desc"]])
+        cursor = pytest.query(filters=[['.01', '>=', 'ROW3'], ['.01', '<=', 'ROW6']], order_by=[[".01", "desc"]])
         result = list(cursor)
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0][1][0], 'ROW6')
@@ -272,7 +272,7 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[3][1][0], 'ROW3')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['name', '>=', 'ROW3'], ['name', '<=', 'ROW6']], order_by=[["name", "desc"]], explain=True))
+        plan = list(pytest.query(filters=[['.01', '>=', 'ROW3'], ['.01', '<=', 'ROW6']], order_by=[[".01", "desc"]], explain=True))
         self.assertEqual(len(plan), 3)
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=False"), -1)
@@ -283,10 +283,9 @@ class TestDjango(unittest.TestCase):
         """
             Search based on a non-indexed column
         """
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
+        pytest = self.dbs.get_file("PYTEST20", fieldids=['.01', '1', '2'])
 
-        cursor = pytest.query(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
+        cursor = pytest.query(filters=[['1', '>=', '3:'], ['1', '<=', '6:']])
         result = list(cursor)
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
@@ -294,13 +293,13 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[2][1][0], 'ROW5')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']], explain=True))
+        plan = list(pytest.query(filters=[['1', '>=', '3:'], ['1', '<=', '6:']], explain=True))
         self.assertEqual(len(plan), 2)
         self.assertEqual(plan[0].find("file_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X None None AND X None None"), -1)
         self.assertEquals(plan[1].find("apply_filters filters"), 0)
-        self.assertNotEquals(plan[1].find("[['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']]"), -1)
+        self.assertNotEquals(plan[1].find("[['1', '>=', '3:'], ['1', '<=', '6:']]"), -1)
 
 
     def test_index_plus_filter(self):
@@ -309,11 +308,10 @@ class TestDjango(unittest.TestCase):
             There is a secondary column constraint which 
             reduces the selection
         """
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
+        pytest = self.dbs.get_file("PYTEST20", fieldids=['.01', '1', '2'])
 
-        cursor = pytest.query(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
-            ['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']])
+        cursor = pytest.query(filters=[['.01', '>', 'A'], ['.01', '<', 'Z'],
+            ['1', '>=', '3:'], ['1', '<=', '6:']])
         result = list(cursor)
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
@@ -321,8 +319,8 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[2][1][0], 'ROW5')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['name', '>', 'A'], ['name', '<', 'Z'],
-            ['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']], explain=True))
+        plan = list(pytest.query(filters=[['.01', '>', 'A'], ['.01', '<', 'Z'],
+            ['1', '>=', '3:'], ['1', '<=', '6:']], explain=True))
         self.assertEqual(len(plan), 2)
 
         self.assertEqual(plan[0].find("index_order_traversal"), 0)
@@ -331,17 +329,16 @@ class TestDjango(unittest.TestCase):
         self.assertNotEquals(plan[0].find("index=B"), -1)
 
         self.assertEquals(plan[1].find("apply_filters filters"), 0)
-        self.assertNotEquals(plan[1].find("['textline_one', '>=', '3:'], ['textline_one', '<=', '6:']"), -1)
+        self.assertNotEquals(plan[1].find("['1', '>=', '3:'], ['1', '<=', '6:']"), -1)
 
     def test_index_in(self):
         """
             right now this gives a non-indexed traversal. In reality,
             it should create a third type of cursor, for multi-set retrieval.
         """
-        pytest = self.dbs.get_file("PYTEST20", fieldnames=[
-            'NAME', 'Textline_One', 'textline2'])
+        pytest = self.dbs.get_file("PYTEST20", fieldids=['.01', '1', '2'])
 
-        cursor = pytest.query(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]])
+        cursor = pytest.query(filters=[['.01', 'in', ['ROW3', 'ROW4', 'ROW5']]])
         result = list(cursor)
         self.assertEqual(len(result), 3)
         self.assertEqual(result[0][1][0], 'ROW3')
@@ -349,12 +346,12 @@ class TestDjango(unittest.TestCase):
         self.assertEqual(result[2][1][0], 'ROW5')
 
         # Check the query plan
-        plan = list(pytest.query(filters=[['name', 'in', ['ROW3', 'ROW4', 'ROW5']]], explain=True))
+        plan = list(pytest.query(filters=[['.01', 'in', ['ROW3', 'ROW4', 'ROW5']]], explain=True))
         self.assertEqual(plan[0].find("file_order_traversal"), 0)
         self.assertNotEquals(plan[0].find("ascending=True"), -1)
         self.assertNotEquals(plan[0].find("X None None AND X None None"), -1)
         self.assertEquals(plan[1].find("apply_filters"), 0)
-        self.assertNotEquals(plan[1].find("filters = [['name', 'in', ['ROW3', 'ROW4', 'ROW5']]]"), -1)
+        self.assertNotEquals(plan[1].find("filters = [['.01', 'in', ['ROW3', 'ROW4', 'ROW5']]]"), -1)
 
     def test_subfile(self):
         """
@@ -367,8 +364,8 @@ class TestDjango(unittest.TestCase):
             _parentid will be the comma separated list of ids from the 
             root to the parent.
         """
-        county = self.dbs.get_file("5.01", fieldnames=["county", "abbreviation", "va_county_code", "catchment_code", "inactive_date"])
-        zip_code = self.dbs.get_file("5.02", fieldnames=["zip_code"])
+        county = self.dbs.get_file("STATE::3", fieldids=[".01", "1", "2", "3", "5"])
+        zip_code = self.dbs.get_file("STATE::3::4", fieldids=[".01"])
 
         #plan = list(county.query(order_by = [["_rowid", "ASC"]], filters = [["_parentid", "=", "6"]], offset=0, explain=True))
         #print plan

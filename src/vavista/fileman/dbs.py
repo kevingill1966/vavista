@@ -130,7 +130,13 @@ class DBS(object):
         if self.remote:
             return DBSFileRemote(self.remote, name, internal=internal, fieldnames=fieldnames, fieldids=fieldids)
 
-        dd = DD(name)
+        if name.find('::') >= 0:
+            # This is a full path name to a subfile. 
+            dd = DD(subfile_path=name)
+        else:
+            # top-level file - dd entry defines the storage.
+            dd = DD(name)
+
         if dd.fileid is None:
             raise FilemanError("""DBS.get_file() : File not found [%s]""" % name)
         return DBSFile(dd, internal=internal, fieldids=fieldids, fieldnames=fieldnames)
