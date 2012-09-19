@@ -120,22 +120,22 @@ class TestNumerics(unittest.TestCase):
         cursor = pytest3.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec[1], 10)
-        self.assertEqual(rec[2], -10)
-        self.assertEqual(rec[3], 33.33)
-        self.assertEqual(rec[4], 22222.22)
-        self.assertEqual(rec[5], -333.0)
+        self.assertEqual(rec[1], '10')
+        self.assertEqual(rec[2], '-10')
+        self.assertEqual(rec[3], '33.33')
+        self.assertEqual(rec[4], '22222.22')
+        self.assertEqual(rec[5], '-333.0')
 
         pytest3 = self.dbs.get_file("PYTEST3", internal=False,
             fieldnames = ["NAME", "INT1", "INT2", "DOLLARS", "FLOAT1", "FLOAT2"])
         cursor = pytest3.traverser("B", "e")
         rec = cursor.next()
 
-        self.assertEqual(rec[1], 10)
-        self.assertEqual(rec[2], -10)
-        self.assertEqual(rec[3], 33.33)
-        self.assertEqual(rec[4], 22222.22)
-        self.assertEqual(rec[5], -333.0)
+        self.assertEqual(rec[1], '10')
+        self.assertEqual(rec[2], '-10')
+        self.assertEqual(rec[3], '33.33')
+        self.assertEqual(rec[4], '22222.22')
+        self.assertEqual(rec[5], '-333.0')
 
     def test_write(self):
         pytest3 = self.dbs.get_file("PYTEST3",
@@ -148,12 +148,11 @@ class TestNumerics(unittest.TestCase):
         cursor = pytest3.traverser("B", "Insert")
         rec = cursor.next()
 
-        self.assertEqual(rec[1], 11)
-        self.assertEqual(rec[2], -11)
-        self.assertEqual(rec[3], 44.44)
-        self.assertEqual(rec[4], 3333.33)
-        self.assertEqual(rec[5], -444.0)
-
+        self.assertEqual(rec[1], '11')
+        self.assertEqual(rec[2], '-11')
+        self.assertEqual(rec[3], '44.44')
+        self.assertEqual(rec[4], '3333.33')
+        self.assertEqual(rec[5], '-444.0')
 
     def test_badwrite(self):
         pytest3 = self.dbs.get_file("PYTEST3")

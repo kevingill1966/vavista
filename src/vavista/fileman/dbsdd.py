@@ -367,9 +367,18 @@ class FieldDatetime(Field):
 
         # Internal format is YYYMMDD.HHMMSS
         parts = s.split(".")
-        yr = int(parts[0][:3]) + 1700
-        mth = int(parts[0][3:5])
-        day = int(parts[0][5:7])
+        try:
+            yr = int(parts[0][:3]) + 1700
+        except:
+            yr = 1700
+        try:
+            mth = int(parts[0][3:5])
+        except:
+            mth = 1
+        try:
+            day = int(parts[0][5:7])
+        except:
+            day = 1
         if len(parts) > 1:
             try:
                 hr = int(parts[1][0:2])
@@ -468,6 +477,7 @@ class FieldNumeric(Field):
     def pyfrom_internal(self, s):
         if s == None or s == "":
             s = 0
+        return s   # have non-numeric data in these fields
         if self.format_info[1]:
             return float(s)
         else:
@@ -577,13 +587,22 @@ class FieldWP(Field):
         if s == "":
             return None
         if type(s) == list:
-            return '\n'.join([rec.decode('utf8') for rec in s])
+            rv = []
+            for field in s:
+                if type(field) == unicode:
+                    rv.append(field)
+                elif type(field) == str:
+                    rv.append(field.decode('utf8', errors='replace'))
+                else:
+                    rv.append(unicode(field))
+            return '\n'.join(rv)
+            #return '\n'.join([rec.decode('utf8') for rec in s])
 
         # For the first pass, assume an internal subfile, i.e. the
         # data is stored on as sub-items on the main item.
         # the value s will contain a closed format global to the actual record.
         gl = M.Globals.from_closed_form(s)
-        return '\n'.join([v.decode('utf8') for (k,v) in gl.items() if k != 'I'])
+        return '\n'.join([v.decode('utf8', errors='replace') for (k,v) in gl.items() if k != 'I'])
 
     def pyfrom_external(self, s):
         return self.pyfrom_internal(s)

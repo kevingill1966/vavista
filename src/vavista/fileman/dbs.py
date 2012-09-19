@@ -139,7 +139,7 @@ class DBS(object):
 
         if dd.fileid is None:
             raise FilemanError("""DBS.get_file() : File not found [%s]""" % name)
-        return DBSFile(dd, internal=internal, fieldids=fieldids, fieldnames=fieldnames)
+        return DBSFile(dd, internal=internal, fieldids=fieldids, fieldnames=fieldnames, ext_filename=name)
 
     def dd(self, name):
         """

@@ -38,6 +38,7 @@ def json_decoder(dct):
         # not interested in the milliseconds
         dt = dct['__datetime__'].split(".")[0]
         dt = datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
+        return dt
     elif '__date__' in dct:
         dt = dct['__date__']
         return datetime.datetime.strptime(dt, "%Y-%m-%d")
@@ -227,6 +228,7 @@ class FilemandServer:
     """
     dbs = None
     handles = None
+    rowcount = None
 
     def __init__(self, socket):
         self.socket = socket
@@ -288,20 +290,30 @@ class FilemandServer:
                 # TODO: can avoid a copy here
                 request_id, handle, request = recv_buffer.split(':', 2)
 
-                logger.debug("request_id:[%s], handle:[%s], data:[%s]", request_id, handle, request)
+                if handle:
+                    dbsfile = self.handles[long(handle)]
+                    filename = dbsfile.ext_filename+", "
+                else:
+                    filename = ""
+                logger.debug("request: %s(%s%s)", request_id, filename, request)
 
                 fn = getattr(self, "cmd_" + request_id)
                 assert fn, "Unknown request [%s] received" % request_id
 
                 timeStart = time.time()
+                self.rowcount = None
                 try:
                     if request:
                         response = fn(handle, json.loads(request))
                     else:
                         response = fn(handle)
 
-                    logger.debug("request_id:[%s], handle:[%s], data:[%s] took %f seconds",
-                        request_id, handle, request, time.time() - timeStart)
+                    if self.rowcount != None:
+                        rc = "returned %d rows, " % self.rowcount
+                    else:
+                        rc = ""
+                    logger.debug("request: %s(%s%s) %stook %f seconds",
+                        request_id, filename, request, rc, time.time() - timeStart)
 
                 except FilemanErrorNumber, e:
                     logger.exception("request [%s], raised a FilemanErrorNumber", request_id)
@@ -416,7 +428,7 @@ class FilemandServer:
             rv.append([cursor.rowid, row])
             if limit and i >= limit-1:
                 break
-        logger.debug("returning %d rows", len(rv))
+        self.rowcount = len(rv)
         return (dbsfile.fieldnames(), rv)
 
     def cmd_dbsfile_count(self, handle, request):
@@ -431,7 +443,7 @@ class FilemandServer:
         dbsfile = self.handles[long(handle)]
         cursor = dbsfile.query(limit=request['limit'], offset=request['offset'], filters=request['filters'], order_by=request['order_by'])
         rv = list(cursor)
-        logger.debug("returning %d rows", len(rv))
+        self.rowcount = len(rv)
         return (dbsfile.fieldnames(), rv)
 
     def cmd_dbsfile_fileid(self, handle, request=None):

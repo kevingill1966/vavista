@@ -1,5 +1,4 @@
 
-import os
 import logging
 
 logger = logging.getLogger("vavista.M")
@@ -8,39 +7,8 @@ logger = logging.getLogger("vavista.M")
 #CODE_PAGE='windows-1252'
 CODE_PAGE='latin-1'
 
-# If the GTMCI environment variable is not configured, then set it to
-# point to the callin file. Otherwise assume that the user knows what
-# they are doing.
-if os.getenv("GTMCI") == None:
-    GTMCI = __path__[0].rsplit("/",1)[0] + "/_gtm/calltab.ci"
-    os.putenv("GTMCI", GTMCI)
-
-gtmroutines = os.getenv("gtmroutines", "")
-if gtmroutines.find("vavista/src/_gtm") == -1:
-    gtmroutines = gtmroutines + " " + __path__[0].rsplit("/",1)[0] + "/_gtm"
-    os.putenv("gtmroutines", gtmroutines)
-
-# At some later stage will try cache and gtm
-
-# I have to import the gtm library using a shared library on a path with
-# the version information. This allows me to connect to multiple versions
-# of GT.M on the same server.
-gtm_dist = os.getenv("gtm_dist")
-if gtm_dist == None:
-    raise Exception("gtm_dist environment variable is not configured")
-gtm_ver = os.path.basename(gtm_dist).replace(".", "_").replace("-", "_")
-vavista = __import__("vavista.gtm%s._gtm" % gtm_ver)
-_mumps = getattr(vavista, "gtm"+gtm_ver)._gtm
-
-INOUT=_mumps.INOUT
-mexec=_mumps.mexec
-mget=_mumps.mget
-mset=_mumps.mset
-mkill=_mumps.mkill
-mdata=_mumps.mdata
-ddwalk=_mumps.ddwalk
-glwalk=_mumps.glwalk
-wpwalk=_mumps.wpwalk
+from vavista.gtm import _mumps, INOUT, mexec, mget, mset, mkill,  \
+    mdata, glwalk, ddwalk, wpwalk
 
 # I am leaving in debugging stuff for now as it is very difficult to diagnose 
 # txn issues. Set this flag to True to enable debugging

@@ -313,10 +313,12 @@ class DBSFile(object):
     _fieldnames = None
     _field_cache = None
     _gl_cache = None
+    ext_filename = None
 
-    def __init__(self, dd, internal=True, fieldids=None, fieldnames=None):
+    def __init__(self, dd, internal=True, fieldids=None, fieldnames=None, ext_filename=None):
         self.dd = dd
         self.internal = internal
+        self.ext_filename = ext_filename
         if fieldnames:
             self.fieldids = [dd.attrs[n.lower()] for n in fieldnames if not n.startswith("_rowid")]
             self._fieldnames = fieldnames

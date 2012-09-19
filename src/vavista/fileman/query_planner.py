@@ -705,7 +705,7 @@ def make_subfile_plan(dbsfile, filters=None, order_by=None, limit=None, offset=0
             for sf_dd, rowid in zip(parent_dds[1:], shared):
                 parent_field = sf_dd.parent_dd.fields[sf_dd.parent_fieldid]
                 sf_path = parent_field.storage.split(";")[0]
-                gl_prefix = gl_prefix + rowid + "," + sf_path + ","
+                gl_prefix = gl_prefix + rowid + ",\"" + sf_path + "\","
                 sf_rowid_path.append(rowid)
                 sf_rowid_path.append(sf_path)
 
